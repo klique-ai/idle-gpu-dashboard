@@ -55,7 +55,8 @@ FROM scratch AS artifacts
 COPY --from=build /out/ /
 
 # Distroless: glibc and CA certificates, no shell, runs as non-root (65532).
+# The nossl variant leaves out OpenSSL, which Go doesn't use (it has its own TLS).
 # Debug with: kubectl exec <pod> -- klique-idle-collector --once
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM gcr.io/distroless/base-nossl-debian12:nonroot
 COPY --from=build /out/klique-idle-collector /out/mock-receiver /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/klique-idle-collector"]
