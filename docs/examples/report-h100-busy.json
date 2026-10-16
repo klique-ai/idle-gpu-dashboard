@@ -1,0 +1,96 @@
+{
+  "schema": "klique-idle.report.v1",
+  "report_id": "e8c03a80-e68c-4608-8c1d-47aa4b97ca2e",
+  "created_at": "2026-10-16T10:15:42.647091005Z",
+  "collector": {
+    "version": "0.1.1-dev",
+    "instance_id": "19d3fb47-c926-435e-97c9-ff848faa8bc2",
+    "started_at": "2026-10-16T10:15:40.64289461Z",
+    "seq": 1,
+    "gpu_source": "nvml",
+    "redacted": false,
+    "dropped_reports": 0
+  },
+  "cluster": "prod-eu-1",
+  "node": {
+    "name": "gpu-node-01",
+    "labels": {
+      "site": "eu-north-1"
+    },
+    "arch": "amd64",
+    "kernel": "6.11.0-1016-nvidia",
+    "os": "Ubuntu 24.04.5 LTS",
+    "cpu": {
+      "model": "Intel(R) Xeon(R) Platinum 8468",
+      "logical_cores": 16
+    },
+    "memory_total_bytes": 211069915136,
+    "gpu_driver": {
+      "version": "580.82.07",
+      "cuda_version": "13.0"
+    }
+  },
+  "window": {
+    "start": "2026-10-16T10:15:40.64289461Z",
+    "end": "2026-10-16T10:15:42.64289461Z",
+    "sample_interval_seconds": 2,
+    "samples": 2
+  },
+  "host": {
+    "cpu_util_percent": {
+      "avg": 0.34,
+      "max": 0.34
+    },
+    "memory_used_bytes": {
+      "avg": 8975689728,
+      "max": 8979914752
+    }
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "uuid": "GPU-3f1c2a9e-5b7d-4e21-9c0a-8d6e1f2b0000",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:8D:00.0",
+      "memory_total_bytes": 85520809984,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 95.36,
+        "max": 96
+      },
+      "memory_used_bytes": {
+        "avg": 1026359296,
+        "max": 1026359296
+      },
+      "power_watts": {
+        "avg": 691.13,
+        "max": 691.41
+      },
+      "temperature_c": {
+        "avg": 59,
+        "max": 59
+      },
+      "processes": [
+        {
+          "pid": 27487,
+          "name": "dcgmproftester13",
+          "user": "root",
+          "memory_used_bytes": 1017118720,
+          "owner": {
+            "kind": "kubernetes",
+            "id": "5b10cf23-b886-4608-a316-6471edbb8a3d",
+            "name": "llm-finetune-7d9f8",
+            "namespace": "ml-research",
+            "container": "trainer",
+            "container_id": "1e84e6598fe2836376115c131b12c841e47d90e3a5aba46a1966befd8d78d2f5"
+          }
+        }
+      ]
+    }
+  ],
+  "scheduler": {
+    "kind": "kubernetes",
+    "gpus_allocatable": 1,
+    "gpus_allocated": 1
+  }
+}

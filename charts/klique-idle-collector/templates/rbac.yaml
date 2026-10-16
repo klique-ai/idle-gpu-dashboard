@@ -1,0 +1,32 @@
+{{- if .Values.rbac.create }}
+# Read-only: the collector reads its own node (GPU capacity, OS image) and the
+# pods scheduled on it (names, GPU requests).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "kic.fullname" . }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "kic.fullname" . }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "kic.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kic.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

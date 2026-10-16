@@ -1,0 +1,201 @@
+{{- $cluster := required "set the cluster name: --set cluster=<name>" .Values.cluster -}}
+{{- $secret := include "kic.secretName" . -}}
+{{- $runtimeClass := include "kic.runtimeClassName" . -}}
+{{- $nvMount := and (eq .Values.collector.gpu "nvml") .Values.nvidia.requestViaVolumeMount -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "kic.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: collector
+spec:
+  selector:
+    matchLabels:
+      {{- include "kic.collectorSelectorLabels" . | nindent 6 }}
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kic.collectorSelectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if and $secret (not .Values.existingSecret.name) }}
+        checksum/token: {{ .Values.token | sha256sum | trunc 16 }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "kic.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.rbac.create }}
+      {{- with $runtimeClass }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      hostPID: {{ .Values.hostPID }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: collector
+          image: {{ include "kic.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.collector.extraArgs }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: KLIQUE_IDLE_CLUSTER
+              value: {{ $cluster | quote }}
+            - name: KLIQUE_IDLE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            {{- with include "kic.endpoint" . }}
+            - name: KLIQUE_IDLE_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if $secret }}
+            - name: KLIQUE_IDLE_TOKEN_FILE
+              value: /etc/klique-idle/token
+            {{- end }}
+            {{- with .Values.labels }}
+            - name: KLIQUE_IDLE_LABELS
+              value: {{ include "kic.labelList" . | quote }}
+            {{- end }}
+            - name: KLIQUE_IDLE_SAMPLE_INTERVAL
+              value: {{ .Values.collector.sampleInterval | quote }}
+            - name: KLIQUE_IDLE_REPORT_INTERVAL
+              value: {{ .Values.collector.reportInterval | quote }}
+            - name: KLIQUE_IDLE_GPU
+              value: {{ .Values.collector.gpu | quote }}
+            {{- if eq .Values.collector.gpu "fake" }}
+            - name: KLIQUE_IDLE_FAKE_GPUS
+              value: {{ .Values.collector.fake.gpus | quote }}
+            - name: KLIQUE_IDLE_FAKE_GPU_MODEL
+              value: {{ .Values.collector.fake.model | quote }}
+            {{- end }}
+            {{- if eq .Values.collector.gpu "nvml" }}
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: {{ .Values.nvidia.visibleDevices | quote }}
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: {{ .Values.nvidia.driverCapabilities | quote }}
+            {{- end }}
+            - name: KLIQUE_IDLE_SCHEDULER
+              value: kubernetes
+            - name: KLIQUE_IDLE_REDACT
+              value: {{ .Values.collector.redact | quote }}
+            - name: KLIQUE_IDLE_INCLUDE_CMDLINE
+              value: {{ .Values.collector.includeCmdline | quote }}
+            - name: KLIQUE_IDLE_GZIP
+              value: {{ .Values.collector.gzip | quote }}
+            {{- if .Values.collector.caConfigMap }}
+            - name: KLIQUE_IDLE_CA_FILE
+              value: /etc/klique-idle/ca/ca.crt
+            {{- end }}
+            - name: KLIQUE_IDLE_HEALTH_ADDR
+              value: ":{{ .Values.healthPort }}"
+            - name: KLIQUE_IDLE_LOG_LEVEL
+              value: {{ .Values.collector.logLevel | quote }}
+            - name: KLIQUE_IDLE_LOG_FORMAT
+              value: {{ .Values.collector.logFormat | quote }}
+            {{- with .Values.collector.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: health
+              containerPort: {{ .Values.healthPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if or $secret .Values.collector.caConfigMap $nvMount }}
+          volumeMounts:
+            {{- if $secret }}
+            - name: token
+              mountPath: /etc/klique-idle/token
+              subPath: {{ include "kic.secretKey" . }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.collector.caConfigMap }}
+            - name: ca
+              mountPath: /etc/klique-idle/ca
+              readOnly: true
+            {{- end }}
+            {{- if $nvMount }}
+            # Asks the NVIDIA container runtime for all GPUs the way the device
+            # plugin does; honoured where env-var requests from unprivileged
+            # pods are disabled (ACCEPT_NVIDIA_VISIBLE_DEVICES_AS_VOLUME_MOUNTS).
+            - name: nvidia-request-all
+              mountPath: /var/run/nvidia-container-devices/all
+              readOnly: true
+            {{- end }}
+          {{- end }}
+      {{- if or $secret .Values.collector.caConfigMap $nvMount }}
+      volumes:
+        {{- if $secret }}
+        - name: token
+          secret:
+            secretName: {{ $secret }}
+            defaultMode: 0440
+        {{- end }}
+        {{- if .Values.collector.caConfigMap }}
+        - name: ca
+          configMap:
+            name: {{ .Values.collector.caConfigMap }}
+        {{- end }}
+        {{- if $nvMount }}
+        - name: nvidia-request-all
+          hostPath:
+            path: /dev/null
+            type: CharDevice
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity:
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else if and (eq .Values.collector.gpu "nvml") .Values.nvidia.pauseDuringDriverUpgrade }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  # Step aside while the GPU Operator swaps the driver or changes
+                  # MIG partitions, like its own components do: the collector
+                  # keeps the GPU open, which would block both. Nodes without
+                  # these labels (no GPU Operator) are unaffected.
+                  - key: nvidia.com/gpu.deploy.device-plugin
+                    operator: NotIn
+                    values: [paused-for-driver-upgrade, paused-for-mig-change]
+                  - key: nvidia.com/gpu.deploy.client
+                    operator: NotIn
+                    values: [paused-for-driver-upgrade, paused-for-mig-change]
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

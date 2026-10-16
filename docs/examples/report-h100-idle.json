@@ -1,0 +1,81 @@
+{
+  "schema": "klique-idle.report.v1",
+  "report_id": "6854a551-0754-49d4-b413-50f13ae9345b",
+  "created_at": "2026-10-16T10:16:52.655424671Z",
+  "collector": {
+    "version": "0.1.1-dev",
+    "instance_id": "a9a8bdca-9bce-438d-ad3b-114822222387",
+    "started_at": "2026-10-16T10:16:50.650797252Z",
+    "seq": 1,
+    "gpu_source": "nvml",
+    "redacted": false,
+    "dropped_reports": 0
+  },
+  "cluster": "prod-eu-1",
+  "node": {
+    "name": "gpu-node-01",
+    "labels": {
+      "site": "eu-north-1"
+    },
+    "arch": "amd64",
+    "kernel": "6.11.0-1016-nvidia",
+    "os": "Ubuntu 24.04.5 LTS",
+    "cpu": {
+      "model": "Intel(R) Xeon(R) Platinum 8468",
+      "logical_cores": 16
+    },
+    "memory_total_bytes": 211069915136,
+    "gpu_driver": {
+      "version": "580.82.07",
+      "cuda_version": "13.0"
+    }
+  },
+  "window": {
+    "start": "2026-10-16T10:16:50.650797252Z",
+    "end": "2026-10-16T10:16:52.650797252Z",
+    "sample_interval_seconds": 2,
+    "samples": 2
+  },
+  "host": {
+    "cpu_util_percent": {
+      "avg": 0.31,
+      "max": 0.31
+    },
+    "memory_used_bytes": {
+      "avg": 8372770816,
+      "max": 8381030400
+    }
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "uuid": "GPU-3f1c2a9e-5b7d-4e21-9c0a-8d6e1f2b0000",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:8D:00.0",
+      "memory_total_bytes": 85520809984,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 0,
+        "max": 0
+      },
+      "memory_used_bytes": {
+        "avg": 0,
+        "max": 0
+      },
+      "power_watts": {
+        "avg": 73.46,
+        "max": 73.54
+      },
+      "temperature_c": {
+        "avg": 34,
+        "max": 34
+      },
+      "processes": []
+    }
+  ],
+  "scheduler": {
+    "kind": "kubernetes",
+    "gpus_allocatable": 1,
+    "gpus_allocated": 0
+  }
+}

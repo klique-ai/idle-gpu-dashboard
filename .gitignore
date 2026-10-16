@@ -1,0 +1,6 @@
+# build output
+collector/bin/
+collector/dist/
+*.test
+*.out
+.DS_Store

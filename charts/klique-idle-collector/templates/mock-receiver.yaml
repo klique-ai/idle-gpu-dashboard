@@ -1,0 +1,72 @@
+{{- if .Values.mockReceiver.enabled }}
+{{- $secret := include "kic.secretName" . }}
+# Development only: logs every report it receives.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kic.fullname" . }}-mock-receiver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mock-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kic.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mock-receiver
+  template:
+    metadata:
+      labels:
+        {{- include "kic.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mock-receiver
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mock-receiver
+          image: {{ include "kic.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/mock-receiver"]
+          {{- if $secret }}
+          env:
+            - name: MOCK_RECEIVER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: {{ include "kic.secretKey" . }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            {{- toYaml .Values.mockReceiver.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kic.fullname" . }}-mock-receiver
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mock-receiver
+spec:
+  selector:
+    {{- include "kic.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mock-receiver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

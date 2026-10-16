@@ -1,0 +1,195 @@
+{
+  "schema": "klique-idle.report.v1",
+  "report_id": "83d91c14-e4be-479f-a993-d3fd56b233a7",
+  "created_at": "2026-10-16T10:59:40.218884762Z",
+  "collector": {
+    "version": "0.1.1-dev",
+    "instance_id": "9b9ac658-567a-4588-9b01-507f06e76fb6",
+    "started_at": "2026-10-16T10:59:38.214010219Z",
+    "seq": 1,
+    "gpu_source": "fake",
+    "redacted": false,
+    "dropped_reports": 0
+  },
+  "cluster": "demo",
+  "node": {
+    "name": "gpu-node-03",
+    "labels": {
+      "site": "lab"
+    },
+    "arch": "amd64",
+    "kernel": "7.0.14-linuxkit",
+    "os": "Ubuntu 24.04.5 LTS",
+    "cpu": {
+      "model": "VirtualApple @ 2.50GHz",
+      "logical_cores": 10
+    },
+    "memory_total_bytes": 20940111872,
+    "gpu_driver": {
+      "version": "simulated"
+    }
+  },
+  "window": {
+    "start": "2026-10-16T10:59:38.214010219Z",
+    "end": "2026-10-16T10:59:40.214010219Z",
+    "sample_interval_seconds": 2,
+    "samples": 2
+  },
+  "host": {
+    "cpu_util_percent": {
+      "avg": 6.8,
+      "max": 6.8
+    },
+    "memory_used_bytes": {
+      "avg": 8620673024,
+      "max": 8687890432
+    }
+  },
+  "gpus": [
+    {
+      "index": 0,
+      "uuid": "GPU-fa97aaa2-e124-52db-425a-f0ab851879a7",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:18:00.0",
+      "memory_total_bytes": 85899345920,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 0,
+        "max": 0
+      },
+      "memory_used_bytes": {
+        "avg": 0,
+        "max": 0
+      },
+      "power_watts": {
+        "avg": 72.26,
+        "max": 72.53
+      },
+      "temperature_c": {
+        "avg": 32.33,
+        "max": 33.43
+      },
+      "processes": []
+    },
+    {
+      "index": 1,
+      "uuid": "GPU-b0cd02db-d54e-d820-016a-3cb9e076b838",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:28:00.0",
+      "memory_total_bytes": 85899345920,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 0,
+        "max": 0
+      },
+      "memory_used_bytes": {
+        "avg": 46926524211,
+        "max": 46926524211
+      },
+      "power_watts": {
+        "avg": 66.51,
+        "max": 69.53
+      },
+      "temperature_c": {
+        "avg": 33.31,
+        "max": 34.06
+      },
+      "processes": [
+        {
+          "pid": 201049,
+          "name": "python3",
+          "user": "root",
+          "memory_used_bytes": 46926524211,
+          "owner": {
+            "kind": "kubernetes",
+            "id": "eac3c8cb-5689-1b22-c4d9-0d4a7a98cfa1",
+            "name": "notebook-rvvsb",
+            "namespace": "team-carol",
+            "container": "main"
+          }
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "uuid": "GPU-0a1fb388-4665-950e-731a-0f4adf4af469",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:38:00.0",
+      "memory_total_bytes": 85899345920,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 73,
+        "max": 82.65
+      },
+      "memory_used_bytes": {
+        "avg": 60937209837,
+        "max": 61278384104
+      },
+      "power_watts": {
+        "avg": 529.7,
+        "max": 542.24
+      },
+      "temperature_c": {
+        "avg": 66.89,
+        "max": 67.49
+      },
+      "processes": [
+        {
+          "pid": 201050,
+          "name": "python3",
+          "user": "root",
+          "memory_used_bytes": 61278384104,
+          "owner": {
+            "kind": "kubernetes",
+            "id": "3f31a6c2-777a-b896-2153-9e4626bd8324",
+            "name": "eval-suite-zx5bz",
+            "namespace": "team-bob",
+            "container": "main"
+          }
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "uuid": "GPU-cdb1d7f7-3888-62c9-c683-6174bd8b7145",
+      "name": "NVIDIA H100 80GB HBM3",
+      "pci_bus_id": "00000000:48:00.0",
+      "memory_total_bytes": 85899345920,
+      "mig_enabled": false,
+      "util_percent": {
+        "avg": 0,
+        "max": 0
+      },
+      "memory_used_bytes": {
+        "avg": 28483132785,
+        "max": 28483132785
+      },
+      "power_watts": {
+        "avg": 70.11,
+        "max": 76.47
+      },
+      "temperature_c": {
+        "avg": 31.36,
+        "max": 32.05
+      },
+      "processes": [
+        {
+          "pid": 201051,
+          "name": "python3",
+          "user": "root",
+          "memory_used_bytes": 28483132785,
+          "owner": {
+            "kind": "kubernetes",
+            "id": "44fba023-8028-1695-2474-34fbbfaff56a",
+            "name": "notebook-625w6",
+            "namespace": "team-eve",
+            "container": "main"
+          }
+        }
+      ]
+    }
+  ],
+  "scheduler": {
+    "kind": "kubernetes"
+  }
+}

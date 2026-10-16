@@ -1,0 +1,47 @@
+[Unit]
+Description=Klique Idle Collector (reports GPU, CPU and memory usage)
+Documentation=https://github.com/clearml/klique-idle-dashboard
+After=network-online.target nvidia-persistenced.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=klique-idle
+Group=klique-idle
+EnvironmentFile=/etc/klique-idle-collector/collector.env
+ExecStart=/usr/local/bin/klique-idle-collector
+Restart=always
+RestartSec=10
+TimeoutStopSec=15
+
+# Stay out of the way of real work.
+Nice=10
+CPUQuota=20%
+MemoryMax=256M
+TasksMax=64
+
+# The collector only reads /proc, NVML and (optionally) runs scontrol/squeue
+# or pbsnodes/qstat. Everything else is locked down.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# Deliberately NOT set: PrivateDevices (would hide /dev/nvidia*) and
+# ProtectProc=invisible (would hide the GPU processes we need to identify).
+
+[Install]
+WantedBy=multi-user.target

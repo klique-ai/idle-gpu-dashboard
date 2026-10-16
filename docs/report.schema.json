@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/clearml/klique-idle-dashboard/docs/report.schema.json",
+  "title": "Klique Idle collector report (klique-idle.report.v1)",
+  "description": "One node's view of one reporting window, POSTed by klique-idle-collector. Field meanings: docs/payload.md. Source of truth: collector/internal/report/report.go. Within v1 fields are only added, so unknown properties must be accepted.",
+  "type": "object",
+  "required": ["schema", "report_id", "created_at", "collector", "cluster", "node", "window", "gpus", "scheduler"],
+  "properties": {
+    "schema": { "const": "klique-idle.report.v1" },
+    "report_id": { "type": "string", "format": "uuid", "description": "Identical on retries: de-duplicate on it." },
+    "created_at": { "type": "string", "format": "date-time" },
+    "collector": { "$ref": "#/$defs/collector" },
+    "cluster": { "type": "string", "minLength": 1 },
+    "node": { "$ref": "#/$defs/node" },
+    "window": { "$ref": "#/$defs/window" },
+    "host": { "$ref": "#/$defs/host", "description": "Absent when host stats could not be read." },
+    "gpus": { "type": "array", "items": { "$ref": "#/$defs/gpu" }, "description": "Empty when the node has no readable NVIDIA GPUs." },
+    "scheduler": { "$ref": "#/$defs/scheduler" },
+    "errors": { "$ref": "#/$defs/errors", "description": "Node-level problems; absent when there are none." }
+  },
+  "$defs": {
+    "collector": {
+      "type": "object",
+      "required": ["version", "instance_id", "started_at", "seq", "gpu_source", "redacted", "dropped_reports"],
+      "properties": {
+        "version": { "type": "string" },
+        "instance_id": { "type": "string", "format": "uuid", "description": "New on every collector start." },
+        "started_at": { "type": "string", "format": "date-time" },
+        "seq": { "type": "integer", "minimum": 1, "description": "1, 2, 3... per instance; a gap means lost reports." },
+        "gpu_source": { "type": "string", "examples": ["nvml", "fake", "none"], "description": "\"fake\" = simulated data: keep out of real totals." },
+        "redacted": { "type": "boolean", "description": "Names are hashes (\"h:...\") when true." },
+        "dropped_reports": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["name", "arch", "cpu", "memory_total_bytes"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+        "arch": { "type": "string", "examples": ["amd64", "arm64"] },
+        "kernel": { "type": "string" },
+        "os": { "type": "string" },
+        "cpu": {
+          "type": "object",
+          "required": ["logical_cores"],
+          "properties": {
+            "model": { "type": "string" },
+            "logical_cores": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "memory_total_bytes": { "type": "integer", "minimum": 0 },
+        "gpu_driver": {
+          "type": "object",
+          "required": ["version"],
+          "properties": {
+            "version": { "type": "string" },
+            "cuda_version": { "type": "string" }
+          }
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "required": ["start", "end", "sample_interval_seconds", "samples"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "sample_interval_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "samples": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "host": {
+      "type": "object",
+      "required": ["cpu_util_percent", "memory_used_bytes"],
+      "properties": {
+        "cpu_util_percent": { "$ref": "#/$defs/percentStat" },
+        "memory_used_bytes": { "$ref": "#/$defs/byteStat" }
+      }
+    },
+    "gpu": {
+      "type": "object",
+      "required": ["index", "uuid", "name", "memory_total_bytes", "mig_enabled", "util_percent", "memory_used_bytes", "processes"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "uuid": { "type": "string", "description": "Stable GPU identity." },
+        "name": { "type": "string", "examples": ["NVIDIA H100 80GB HBM3"] },
+        "pci_bus_id": { "type": "string" },
+        "memory_total_bytes": { "type": "integer", "minimum": 0 },
+        "mig_enabled": { "type": "boolean" },
+        "util_percent": { "oneOf": [{ "$ref": "#/$defs/percentStat" }, { "type": "null" }], "description": "null = unknown (e.g. MIG), never idle." },
+        "memory_used_bytes": { "oneOf": [{ "$ref": "#/$defs/byteStat" }, { "type": "null" }], "description": "null = unknown." },
+        "power_watts": { "$ref": "#/$defs/numberStat" },
+        "temperature_c": { "$ref": "#/$defs/numberStat" },
+        "processes": { "type": "array", "items": { "$ref": "#/$defs/process" } },
+        "allocated": { "type": "boolean", "description": "Present only when the scheduler says which GPU a job holds (Slurm)." },
+        "allocated_to": { "$ref": "#/$defs/owner" },
+        "errors": { "$ref": "#/$defs/errors" }
+      }
+    },
+    "process": {
+      "type": "object",
+      "required": ["pid"],
+      "properties": {
+        "pid": { "type": "integer", "minimum": 0 },
+        "name": { "type": "string" },
+        "user": { "type": "string" },
+        "cmdline": { "type": "string", "description": "Only with --include-cmdline." },
+        "memory_used_bytes": { "type": "integer", "minimum": 0, "description": "Peak in window; absent when the driver doesn't say." },
+        "owner": { "$ref": "#/$defs/owner" }
+      }
+    },
+    "owner": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "examples": ["kubernetes", "slurm", "pbs", "docker", "podman", "systemd", "session"] },
+        "id": { "type": "string", "description": "Pod UID, job ID, container ID or unit name." },
+        "name": { "type": "string" },
+        "namespace": { "type": "string" },
+        "container": { "type": "string" },
+        "container_id": { "type": "string" },
+        "user": { "type": "string" },
+        "queue": { "type": "string" }
+      }
+    },
+    "scheduler": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "examples": ["kubernetes", "slurm", "pbs", "none"] },
+        "gpus_allocatable": { "type": "integer", "minimum": 0 },
+        "gpus_allocated": { "type": "integer", "minimum": 0 },
+        "state": { "type": "string" }
+      }
+    },
+    "percentStat": {
+      "type": "object",
+      "required": ["avg", "max"],
+      "properties": {
+        "avg": { "type": "number", "minimum": 0, "maximum": 100 },
+        "max": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "numberStat": {
+      "type": "object",
+      "required": ["avg", "max"],
+      "properties": {
+        "avg": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "byteStat": {
+      "type": "object",
+      "required": ["avg", "max"],
+      "properties": {
+        "avg": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}

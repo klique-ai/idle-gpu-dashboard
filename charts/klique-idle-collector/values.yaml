@@ -1,0 +1,157 @@
+# -- Cluster name shown on the dashboard. Required.
+cluster: ""
+
+# -- URL the collectors POST reports to. Empty prints reports to the pod logs
+# instead (or sends them to the mock receiver when mockReceiver.enabled).
+endpoint: ""
+
+# -- Bearer token for the endpoint. Stored in a Secret created by the chart.
+# Prefer existingSecret for real deployments.
+token: ""
+
+existingSecret:
+  # -- Name of an existing Secret holding the token (overrides `token`).
+  name: ""
+  # -- Key of the token inside that Secret.
+  key: token
+
+# -- Extra labels sent with every report, e.g. {site: sjc-1, env: prod}.
+labels: {}
+
+collector:
+  # -- How often each node is read.
+  sampleInterval: 2s
+  # -- How often each node sends a report.
+  reportInterval: 10s
+  # -- GPU source: nvml (real GPUs), fake (simulated GPUs, for demos and
+  # clusters without GPUs) or none.
+  gpu: nvml
+  fake:
+    # -- Simulated GPUs per node (gpu: fake).
+    gpus: 8
+    # -- Simulated model: a100, h100, h200, b200 or l40s.
+    model: h100
+  # -- Replace user, job, pod and process names with hashes.
+  redact: false
+  # -- Also send GPU process command lines (may contain secrets passed as arguments).
+  includeCmdline: false
+  # -- gzip request bodies (the server must accept Content-Encoding: gzip).
+  gzip: false
+  # -- Extra CA certificate for the endpoint: name of a ConfigMap with a `ca.crt` key.
+  caConfigMap: ""
+  # -- debug, info, warn or error.
+  logLevel: info
+  # -- text or json.
+  logFormat: text
+  # -- Extra command-line flags, e.g. ["--queue-size=720"].
+  extraArgs: []
+  # -- Extra environment variables for the collector container.
+  extraEnv: []
+
+image:
+  # -- Set this to where you pushed the image (`make image PUSH=1`); there is
+  # no public registry yet, so the default only works with locally loaded images.
+  repository: klique-idle-collector
+  # -- Defaults to the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nvidia:
+  # -- RuntimeClass giving the pod access to the NVIDIA driver. "auto" uses
+  # "nvidia" when that RuntimeClass exists (GPU Operator installs it); set ""
+  # when nvidia is already the node's default runtime, or name another class.
+  runtimeClassName: auto
+  # -- The collector sees GPUs through the NVIDIA container runtime instead of
+  # requesting nvidia.com/gpu, so it never takes a GPU away from workloads.
+  visibleDevices: all
+  # -- "utility" is enough for NVML (what nvidia-smi uses); no compute access.
+  driverCapabilities: utility
+  # -- Also request the GPUs through a volume mount, the way the NVIDIA device
+  # plugin does. Needed where the container toolkit ignores the env-var request
+  # from unprivileged pods (GPU Operator toolkit setting
+  # ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED=false), harmless
+  # elsewhere. If neither request is honoured, the last resort is
+  # securityContext.privileged=true, which is what DCGM exporters use.
+  requestViaVolumeMount: true
+  # -- Leave a node while the GPU Operator upgrades its driver or changes MIG
+  # partitions (node label nvidia.com/gpu.deploy.*=paused-for-driver-upgrade /
+  # paused-for-mig-change), the way the operator's own components do. Without
+  # this the collector keeps the GPU open and the old driver can't be unloaded,
+  # so the upgrade hangs. Ignored when `affinity`
+  # is set: then add the same rule to your affinity yourself.
+  pauseDuringDriverUpgrade: true
+
+# -- Share the host PID namespace, so GPU processes can be matched to their
+# pods. Without it, reports still have GPU usage but no process/pod names.
+hostPID: true
+
+rbac:
+  # -- Create a ClusterRole allowing get on nodes and list on pods (pod names,
+  # GPU allocation per node). Without it, reports carry pod UIDs only.
+  create: true
+
+serviceAccount:
+  create: true
+  # -- Defaults to the release fullname.
+  name: ""
+  annotations: {}
+
+# -- Run only on GPU nodes. The label is set by NVIDIA GPU Feature Discovery
+# (part of the GPU Operator); adjust if your GPU nodes are labelled
+# differently, or set {} with collector.gpu=fake.
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+
+# -- Tolerate every taint, so the collector also runs on dedicated GPU nodes.
+tolerations:
+  - operator: Exists
+
+affinity: {}
+priorityClassName: ""
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  # Lets the non-root user read the mounted token.
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  privileged: false
+  capabilities:
+    drop: [ALL]
+
+# -- Port of the /healthz endpoint (liveness probe).
+healthPort: 9478
+
+podAnnotations: {}
+podLabels: {}
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 10%
+
+# -- For demos and development only: an in-cluster receiver that logs every
+# report (kubectl logs deploy/<release>-mock-receiver). When enabled and
+# `endpoint` is empty, collectors send to it.
+mockReceiver:
+  enabled: false
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
