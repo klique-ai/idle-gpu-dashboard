@@ -6,7 +6,7 @@ Guidance for working on this repository (people and coding agents alike).
 
 Klique Idle Dashboard shows how much GPU capacity a cluster leaves idle and what it could produce
 instead. This repo is the open-source part:
-- the **collector**, a per-node agent that reports GPU, CPU and memory usage plus the owning pod or job of every GPU process;
+- the **collector**, a per-node agent that reports GPU, CPU and memory usage plus the owning pod or job of every GPU process, and serves its node's metrics at `/metrics` on the health port (how bare metal, Slurm and PBS reach Prometheus; on Kubernetes scrape the hub instead);
 - the **hub**, one per cluster, which receives the collectors' reports, serves them as Prometheus metrics with a Grafana dashboard (the default), and forwards them to Klique Cloud (the hosted dashboard) only when given an API key.
 
 Any server can consume the reports; the contract is [docs/payload.md](docs/payload.md), and

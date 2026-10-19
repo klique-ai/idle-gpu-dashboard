@@ -1,4 +1,5 @@
-// Package health serves /healthz for liveness probes and humans.
+// Package health serves /healthz for liveness probes and humans, and /metrics
+// (this node's latest report in Prometheus format) for scrapers.
 package health
 
 import (
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	"github.com/clearml/klique-idle-dashboard/collector/internal/collector"
+	"github.com/clearml/klique-idle-dashboard/collector/internal/metrics"
+	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
 	"github.com/clearml/klique-idle-dashboard/collector/internal/sender"
 )
 
@@ -27,9 +30,15 @@ type response struct {
 	Delivery sender.Stats     `json:"delivery"`
 }
 
+// Source is what the server reads from the collector.
+type Source interface {
+	Status() collector.Status
+	LastReport() *report.Report
+}
+
 // New builds the server. The loop counts as stuck when no sample was taken
 // for maxStale.
-func New(addr string, c *collector.Collector, s sender.Sender, maxStale time.Duration, log *slog.Logger) *Server {
+func New(addr string, c Source, s sender.Sender, maxStale time.Duration, log *slog.Logger) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
 		resp := response{OK: true, Status: c.Status(), Delivery: s.Stats()}
@@ -43,6 +52,22 @@ func New(addr string, c *collector.Collector, s sender.Sender, maxStale time.Dur
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(resp)
+	})
+	// The same series the hub serves for a whole cluster, for this node only,
+	// so Prometheus can scrape nodes directly (bare metal, Slurm, PBS).
+	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, _ *http.Request) {
+		m := metrics.NewSet()
+		// While the sampling loop is stalled the last report is stale: leave the
+		// node's series out (a gap in Grafana) rather than repeat old values.
+		last := c.Status().LastSample
+		if r := c.LastReport(); r != nil && !last.IsZero() && time.Since(last) <= maxStale {
+			m.AddReport(r)
+		}
+		st := s.Stats()
+		m.Gauge("klique_idle_collector_reports_pending", "Reports waiting to be delivered to the endpoint.", nil, float64(st.Pending))
+		m.Counter("klique_idle_collector_reports_dropped_total", "Reports dropped instead of delivered (queue full or rejected).", nil, float64(st.Dropped))
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		m.Write(w)
 	})
 	return &Server{
 		srv: &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second},

@@ -299,6 +299,19 @@ type Stdout struct {
 	sent   uint64
 }
 
+// Discard drops every report: with no endpoint and --print-reports=false the
+// collector only serves its metrics.
+type Discard struct{}
+
+// Enqueue implements Sender.
+func (Discard) Enqueue(*report.Report) {}
+
+// Run implements Sender.
+func (Discard) Run(ctx context.Context) { <-ctx.Done() }
+
+// Stats implements Sender.
+func (Discard) Stats() Stats { return Stats{} }
+
 // NewStdout writes to w.
 func NewStdout(w io.Writer, indent bool) *Stdout { return &Stdout{w: w, indent: indent} }
 

@@ -134,7 +134,8 @@ securityContext:
   capabilities:
     drop: [ALL]
 
-# -- Port of the /healthz endpoint (liveness probe).
+# -- Port of the collector's /healthz (liveness probe). It also answers /metrics
+# for its own node; on Kubernetes scrape the hub instead (metrics.serviceMonitor).
 healthPort: 9478
 
 podAnnotations: {}

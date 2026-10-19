@@ -25,7 +25,8 @@ every 2 s (aligned to the clock)          every 10 s (aligned: :00, :10, …)
 | `internal/sender` | Bounded queue of encoded reports (oldest dropped), retry with jittered backoff, permanent vs transient errors; `Pool` for parallel, per-node-ordered delivery (hub); stdout writer |
 | `internal/config` | Flags + `KLIQUE_IDLE_*` env vars, validation |
 | `internal/envflag` | Every flag as an env var (`KLIQUE_IDLE_*` for the collector, `KLIQUE_IDLE_HUB_*` for the hub) |
-| `internal/health` | `/healthz`: loop liveness plus delivery stats |
+| `internal/health` | `/healthz` (loop liveness, delivery stats) and `/metrics` (this node in Prometheus format) |
+| `internal/metrics` | Reports → Prometheus text format, shared by the collector's `/metrics` and the hub |
 | `internal/hub` | Keeps the latest report per node; `/metrics` (Prometheus text format, no client library), `/v1/nodes`, forwarding through `internal/sender` |
 | `cmd/klique-idle-hub` | The hub binary: `--token`, `--cloud-api-key[-file]`, `--cloud-workers`, `--stale-after`, `--dump` |
 

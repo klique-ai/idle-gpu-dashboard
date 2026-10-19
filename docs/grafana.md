@@ -1,6 +1,10 @@
 # Grafana
 
-The hub serves the latest state of every node in Prometheus format at `http://<hub>:8080/metrics`.
+On Kubernetes the hub serves the latest state of every node in Prometheus format at
+`http://<hub>:8080/metrics`. On bare metal, Slurm and PBS every collector serves its own node at
+`http://<node>:9478/metrics`, with the same metric names and labels. Scrape one or the other, not
+both: on Kubernetes the collector pods also answer `/metrics`, and scraping them as well as the hub
+counts every GPU twice.
 Any Prometheus-compatible scraper can collect it (Prometheus, Grafana Alloy, VictoriaMetrics, the
 OpenTelemetry Collector), and [the included dashboard](../charts/klique-idle/dashboards/klique-idle.json)
 charts it in Grafana.
@@ -32,10 +36,21 @@ scrape_configs:
   - job_name: klique-idle-hub
     scrape_interval: 10s
     static_configs:
-      - targets: ['klique-idle-hub.klique-idle.svc:8080']   # bare metal: <hub-host>:8080
+      - targets: ['klique-idle-hub.klique-idle.svc:8080']
 ```
 
-**Grafana Cloud / Alloy:** scrape the same target with `prometheus.scrape` and send it with
+**Bare metal, Slurm, PBS:** scrape every GPU node, installed with `--listen :9478` so the metrics
+are reachable from Prometheus (the default keeps them on the node):
+
+```yaml
+scrape_configs:
+  - job_name: klique-idle
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['gpu-01:9478', 'gpu-02:9478']   # or file_sd / your inventory
+```
+
+**Grafana Cloud / Alloy:** scrape the same targets with `prometheus.scrape` and send them with
 `prometheus.remote_write`.
 
 Without the sidecar, import the dashboard by hand: *Dashboards → New → Import*, upload
@@ -74,7 +89,8 @@ and `node`.
 | `klique_idle_node_errors` | node-level problems in the last report (details: `GET /v1/nodes`) |
 | `klique_idle_node_last_report_timestamp_seconds` | end of the node's last report window |
 | `klique_idle_hub_*` | the hub itself: nodes, reports received/rejected, Klique Cloud forwarding |
+| `klique_idle_collector_reports_pending`, `klique_idle_collector_reports_dropped_total` | a collector's delivery to its endpoint (per-node `/metrics` only) |
 
 There are no per-process or per-pod metrics, which keeps the number of series at the size of the
 cluster. To see who is using each GPU, read `GET /v1/nodes` on the hub (with the token, if one is
-set) or use Klique Cloud.
+set), run `klique-idle-collector --once` on a node, or use Klique Cloud.

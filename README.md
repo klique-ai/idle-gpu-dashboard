@@ -33,7 +33,7 @@ report to the cluster's **hub**, which:
 | Collector (Go, single binary, amd64 + arm64) | ready; unit-tested; validated on a real NVIDIA H100 (utilization, memory, power and process attribution match `nvidia-smi`) |
 | Hub (Prometheus metrics, Grafana dashboard, optional Klique Cloud forwarding) | new in 0.2.0; unit-tested, validated end to end with Prometheus + Grafana |
 | Kubernetes (Helm chart, DaemonSet) | ready; tested on an H100 node with NVIDIA GPU Operator v25.3.4 and v26.7.1, CDI on and off, vanilla and hardened ([results](docs/gpu-operator-compatibility.md)), and on a 3-node kind cluster |
-| Bare metal (systemd service + installer) | ready; validated on an H100 VM with a host-installed driver (580.173.02): numbers match `nvidia-smi`, processes attributed to their systemd unit, runs non-root; install, upgrade and uninstall tested |
+| Bare metal (systemd service + installer) | ready; validated on an H100 VM with a host-installed driver (580.173.02): numbers match `nvidia-smi`, processes attributed to their systemd unit, runs non-root; install, upgrade and uninstall tested. Since 0.2.2 every node serves Prometheus `/metrics`, and `--endpoint` (e.g. Klique Cloud) is optional |
 | Slurm | scheduler integration tested against Slurm 23.11; no-root batch-job fallback tested |
 | PBS (OpenPBS / PBS Professional) | draft: written against documented `pbsnodes`/`qstat` JSON, not run against a live PBS yet |
 | Klique Cloud | hosted dashboard (separate product); any server can take the same reports: the data contract is [docs/payload.md](docs/payload.md) |
@@ -69,8 +69,7 @@ See [charts/klique-idle/values.yaml](charts/klique-idle/values.yaml) for every o
 ```sh
 tar xzf klique-idle-collector-<version>-linux-amd64.tar.gz
 cd klique-idle-collector-<version>-linux-amd64
-sudo ./install.sh --cluster hpc-a --endpoint https://dashboard.example.com/v1/reports \
-                  --token-file /root/klique-token --labels site=sjc-1
+sudo ./install.sh --cluster hpc-a --labels site=sjc-1
 ```
 
 The installer:
@@ -82,12 +81,12 @@ The installer:
 Re-running it upgrades in place, and `--uninstall` removes it. To roll it out to many nodes, use
 your usual tool, e.g. `pdsh -w gpu[01-64] 'sudo /shared/kic/install.sh ...'`.
 
-`--endpoint` decides where the data goes:
-- **Grafana:** run one hub for the cluster on any host (`klique-idle-hub`, in the same tarball and
-  image), point the collectors at `http://<hub-host>:8080/v1/reports`, and let Prometheus scrape
-  `http://<hub-host>:8080/metrics` ([docs/grafana.md](docs/grafana.md)).
-- **Klique Cloud:** `--endpoint https://idle.klique.ai/v1/reports` with your API key as the token
-  file, or run a hub with `--cloud-api-key-file`.
+Where the data goes:
+- **Prometheus / Grafana (default):** every node serves its metrics at `/metrics` on port 9478,
+  on the node only by default; add `--listen :9478` so a Prometheus on another host can scrape it,
+  then import the dashboard ([docs/grafana.md](docs/grafana.md)). Nothing else leaves the node.
+- **Klique Cloud (optional):** add `--endpoint https://idle.klique.ai/v1/reports --token-file <file
+  with your API key>`; the metrics stay on. See [deploy/systemd](deploy/systemd/README.md).
 
 ### Slurm and PBS
 
@@ -145,7 +144,8 @@ variable: `--report-interval` → `KLIQUE_IDLE_REPORT_INTERVAL`. Flags win over 
 | `--include-cmdline` | `false` | send GPU process command lines |
 | `--queue-size` | `360` | reports kept while the server is unreachable |
 | `--gzip`, `--ca-file`, `--insecure-skip-verify` | | delivery options |
-| `--health-addr` | `127.0.0.1:9478` | `/healthz` endpoint; `off` disables it |
+| `--health-addr` | `127.0.0.1:9478` | `/healthz` and `/metrics`; `:9478` for every interface, `off` disables them |
+| `--print-reports` | `true` | with no endpoint, print reports to stdout; `false` only serves `/metrics` |
 | `--once` | | print one report and exit: exactly what would be sent |
 
 ## Operating it

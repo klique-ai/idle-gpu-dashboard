@@ -17,14 +17,18 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 usage() {
 	cat <<'EOF'
 Usage:
-  sudo ./install.sh --cluster NAME --endpoint URL [options]   install or reconfigure
+  sudo ./install.sh --cluster NAME [options]                  install or reconfigure
   sudo ./install.sh [--binary PATH]                           upgrade the binary, keep the config
   sudo ./install.sh --uninstall [--purge]                     remove (--purge also removes config and user)
 
 Options:
   --cluster NAME        cluster name shown on the dashboard
-  --endpoint URL        where to send reports (https://...)
-  --token-file FILE     file containing the bearer token (preferred)
+  --listen ADDR         address of /metrics (Prometheus) and /healthz [default 127.0.0.1:9478, this
+                        node only]; :9478 lets a Prometheus on another host scrape it; "off" for none
+  --endpoint URL        also send every report to a server, e.g. Klique Cloud:
+                        https://idle.klique.ai/v1/reports with --token-file. Kept on a reconfigure
+                        unless given again; "--endpoint none" stops sending
+  --token-file FILE     file containing the endpoint's bearer token, e.g. your Klique Cloud API key (preferred)
   --token TOKEN         bearer token (visible in shell history and ps)
   --labels k=v,k=v      extra labels, e.g. site=sjc-1,rack=b4
   --env KEY=VALUE       extra collector setting, repeatable, e.g. --env KLIQUE_IDLE_REPORT_INTERVAL=30s
@@ -38,13 +42,14 @@ EOF
 die() { echo "error: $*" >&2; exit 1; }
 log() { echo "==> $*"; }
 
-cluster='' endpoint='' token='' token_file='' labels='' binary='' run_as_root=0 start=1 uninstall=0 purge=0
+cluster='' endpoint='' token='' token_file='' labels='' binary='' listen='' run_as_root=0 start=1 uninstall=0 purge=0
 extra_env=()
 need_arg() { [[ $# -ge 2 && -n $2 ]] || die "$1 needs a value"; }
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--cluster) need_arg "$@"; cluster=$2; shift 2 ;;
 		--endpoint) need_arg "$@"; endpoint=$2; shift 2 ;;
+		--listen) need_arg "$@"; listen=$2; shift 2 ;;
 		--token) need_arg "$@"; token=$2; shift 2 ;;
 		--token-file) need_arg "$@"; token_file=$2; shift 2 ;;
 		--labels) need_arg "$@"; labels=$2; shift 2 ;;
@@ -92,15 +97,24 @@ version=$("$binary" --version 2>/dev/null) || die "$binary does not run on this 
 
 # --- configuration -----------------------------------------------------------
 reconfigure=0
-if [[ -z $cluster && -z $endpoint && -f $ENV_FILE ]] &&
-	[[ -n $token || -n $token_file || -n $labels || ${#extra_env[@]} -gt 0 ]]; then
-	die "to change settings pass --cluster and --endpoint too: a reconfigure rewrites the whole configuration"
+if [[ -z $cluster && -f $ENV_FILE ]] &&
+	[[ -n $endpoint || -n $token || -n $token_file || -n $labels || -n $listen || ${#extra_env[@]} -gt 0 ]]; then
+	die "to change settings pass --cluster too: a reconfigure rewrites the whole configuration"
 fi
-if [[ -n $cluster || -n $endpoint || ! -f $ENV_FILE ]]; then
+if [[ -n $cluster || ! -f $ENV_FILE ]]; then
 	reconfigure=1
 	[[ -n $cluster ]] || die "--cluster is required"
-	[[ -n $endpoint ]] || die "--endpoint is required"
-	[[ $endpoint == http://* || $endpoint == https://* ]] || die "--endpoint must be an http(s) URL"
+	# Keep sending where this node already sends, unless told otherwise: a
+	# reconfigure for, say, new labels mustn't silently stop the reports.
+	if [[ -z $endpoint && -f $ENV_FILE ]]; then
+		# shellcheck disable=SC1090
+		endpoint=$(. "$ENV_FILE" && echo "${KLIQUE_IDLE_ENDPOINT:-}")
+		[[ -n $endpoint ]] && log "keeping endpoint $endpoint (--endpoint none stops sending)"
+	fi
+	[[ $endpoint == none ]] && endpoint=''
+	listen=${listen:-127.0.0.1:9478}
+	[[ -z $endpoint || $endpoint == http://* || $endpoint == https://* ]] || die "--endpoint must be an http(s) URL"
+	[[ -n $endpoint || ( -z $token && -z $token_file ) ]] || die "--token/--token-file need --endpoint (the server to send to)"
 	[[ -z $token || -z $token_file ]] || die "use only one of --token and --token-file"
 	if [[ -n $token_file ]]; then
 		[[ -r $token_file ]] || die "cannot read $token_file"
@@ -134,7 +148,10 @@ if [[ $reconfigure -eq 1 ]]; then
 	log "writing $ENV_FILE"
 	install -d -m 0750 -o root -g "$SVC_USER" "$CONF_DIR"
 	keep_token=0
-	if [[ -z $token && -f $TOKEN_FILE ]]; then
+	if [[ -z $endpoint ]]; then
+		# Metrics only: nothing is sent, so no token is kept on disk.
+		rm -f "$TOKEN_FILE"
+	elif [[ -z $token && -f $TOKEN_FILE ]]; then
 		keep_token=1
 		log "no token given: keeping the existing $TOKEN_FILE"
 	fi
@@ -143,10 +160,11 @@ if [[ $reconfigure -eq 1 ]]; then
 		echo "# Klique Idle Collector settings: every flag of 'klique-idle-collector --help'"
 		echo "# can be set here as KLIQUE_IDLE_<FLAG>. Restart the service after editing."
 		echo "KLIQUE_IDLE_CLUSTER=$(quote "$cluster")"
-		echo "KLIQUE_IDLE_ENDPOINT=$(quote "$endpoint")"
+		[[ -n $endpoint ]] && echo "KLIQUE_IDLE_ENDPOINT=$(quote "$endpoint")"
 		[[ -n $token || $keep_token -eq 1 ]] && echo "KLIQUE_IDLE_TOKEN_FILE=$TOKEN_FILE"
 		[[ -n $labels ]] && echo "KLIQUE_IDLE_LABELS=$(quote "$labels")"
-		echo "KLIQUE_IDLE_HEALTH_ADDR=127.0.0.1:9478"
+		echo "KLIQUE_IDLE_HEALTH_ADDR=$(quote "$listen")"
+		[[ -z $endpoint ]] && echo "KLIQUE_IDLE_PRINT_REPORTS=false"
 		for kv in "${extra_env[@]+"${extra_env[@]}"}"; do echo "${kv%%=*}=$(quote "${kv#*=}")"; done
 	} >"$tmp"
 	chown root:"$SVC_USER" "$tmp"
@@ -199,7 +217,17 @@ if [[ $start -eq 1 ]]; then
 	systemctl restart "$SVC"
 	sleep 2
 	systemctl is-active --quiet "$SVC" || { journalctl -u "$SVC" -n 20 --no-pager; die "service failed to start"; }
-	log "running. Logs: journalctl -u $SVC -f    Health: curl -s localhost:9478/healthz"
+	# shellcheck disable=SC1090 # the env file is written above
+	addr=$(. "$ENV_FILE" && echo "${KLIQUE_IDLE_HEALTH_ADDR:-}")
+	dest=$(. "$ENV_FILE" && echo "${KLIQUE_IDLE_ENDPOINT:-}")
+	log "running. Logs: journalctl -u $SVC -f"
+	case $addr in
+		'' | off) log "metrics: off" ;;
+		127.0.0.1:* | localhost:* | \[::1\]:*)
+			log "metrics: this node only (curl -s $addr/metrics); --listen :${addr##*:} lets Prometheus on another host scrape it" ;;
+		*) log "metrics: scrape http://<this node>:${addr##*:}/metrics (check: curl -s localhost:${addr##*:}/metrics)" ;;
+	esac
+	if [[ -n $dest ]]; then log "sending reports to $dest"; else log "not sending reports anywhere (metrics only)"; fi
 else
 	log "installed, not started (systemctl enable --now $SVC)"
 fi

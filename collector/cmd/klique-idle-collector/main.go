@@ -66,9 +66,12 @@ func run() int {
 	watcher := newSchedulerWatcher(schedKind, cfg, log)
 
 	var out sender.Sender
-	if cfg.StdoutMode() {
+	switch {
+	case cfg.StdoutMode() && (cfg.Print || cfg.Once):
 		out = sender.NewStdout(os.Stdout, cfg.Pretty || cfg.Once)
-	} else {
+	case cfg.StdoutMode():
+		out = sender.Discard{} // metrics only: reports are just served at /metrics
+	default:
 		h, err := sender.NewHTTP(sender.HTTPOptions{
 			URL:                cfg.Endpoint,
 			Token:              cfg.Token,

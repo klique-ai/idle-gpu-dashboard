@@ -2,6 +2,10 @@
 
 ## Recommended: a service on every compute node
 
+With the service install below, each node serves Prometheus metrics at `/metrics` and sends reports
+to Klique Cloud or another server only with `--endpoint` (see [deploy/systemd](../systemd/README.md)).
+The batch-job fallback has no metrics: it needs `--endpoint`.
+
 Install the collector as a systemd service on each GPU node with
 [`../systemd/install.sh`](../systemd/install.sh), the same as on bare metal. It runs outside of
 Slurm, so it:

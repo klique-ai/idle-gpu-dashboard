@@ -4,6 +4,10 @@
 > (`pbsnodes -F json`, `qstat -f -F json`) and has unit tests, but it has not run against a live
 > PBS cluster yet.
 
+With the service install below, each node serves Prometheus metrics at `/metrics` and sends reports
+to Klique Cloud or another server only with `--endpoint` (see [deploy/systemd](../systemd/README.md)).
+The batch-job fallback has no metrics: it needs `--endpoint`.
+
 ## Recommended: a service on every compute node
 
 Same as bare metal: run [`../systemd/install.sh`](../systemd/install.sh) on each GPU node, e.g.

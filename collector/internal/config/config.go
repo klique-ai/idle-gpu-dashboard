@@ -54,6 +54,7 @@ type Config struct {
 	HealthAddr string
 	Once       bool
 	Pretty     bool
+	Print      bool
 	LogLevel   string
 	LogFormat  string
 	Version    bool
@@ -98,9 +99,10 @@ func Parse(args []string, getenv func(string) string, stderr io.Writer) (*Config
 	fs.BoolVar(&c.Redact, "redact", false, "replace user, job, pod and process names with hashes")
 	fs.BoolVar(&c.IncludeCmdline, "include-cmdline", false, "send GPU process command lines (may contain secrets passed as arguments)")
 
-	fs.StringVar(&c.HealthAddr, "health-addr", "127.0.0.1:9478", "address for the /healthz endpoint; \"off\" disables it")
+	fs.StringVar(&c.HealthAddr, "health-addr", "127.0.0.1:9478", "address for /healthz and /metrics (Prometheus); \":9478\" listens on every interface; \"off\" disables both")
 	fs.BoolVar(&c.Once, "once", false, "take one short sample, print the report to stdout and exit (shows exactly what would be sent)")
 	fs.BoolVar(&c.Pretty, "pretty", false, "indent JSON printed to stdout")
+	fs.BoolVar(&c.Print, "print-reports", true, "with no endpoint, print every report to stdout; false only serves /metrics")
 	fs.StringVar(&c.LogLevel, "log-level", "info", "debug, info, warn or error")
 	fs.StringVar(&c.LogFormat, "log-format", "text", "text or json")
 	fs.BoolVar(&c.Version, "version", false, "print the version and exit")

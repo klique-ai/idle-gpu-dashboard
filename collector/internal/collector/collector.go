@@ -52,6 +52,7 @@ type Collector struct {
 
 	mu     sync.Mutex
 	status Status
+	last   *report.Report // latest report, for /metrics; never modified once emitted
 }
 
 // Status is a summary for the health endpoint.
@@ -284,6 +285,9 @@ func (c *Collector) emit(end time.Time) {
 		redact(r, c.opt.Cluster)
 	}
 	c.out.Enqueue(r)
+	c.mu.Lock()
+	c.last = r
+	c.mu.Unlock()
 	c.setStatus(func(s *Status) {
 		s.LastReport, s.Reports, s.Errors = c.now(), c.seq, r.Errors
 	})
@@ -303,6 +307,14 @@ func (c *Collector) setStatus(f func(*Status)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	f(&c.status)
+}
+
+// LastReport returns the latest report, or nil before the first one. Callers
+// must not modify it.
+func (c *Collector) LastReport() *report.Report {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.last
 }
 
 // Status returns a copy of the current status.
