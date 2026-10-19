@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 )
 
 // fakeRun answers commands from a table keyed by "name arg1 arg2...".

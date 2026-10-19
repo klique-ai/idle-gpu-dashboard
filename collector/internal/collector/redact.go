@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 )
 
 // redact replaces user, workload and process names with stable hashes, so a

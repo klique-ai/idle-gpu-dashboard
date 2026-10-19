@@ -1,4 +1,4 @@
-module github.com/clearml/klique-idle-dashboard/collector
+module github.com/klique-ai/idle-gpu-dashboard/collector
 
 go 1.23
 

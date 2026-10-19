@@ -6,7 +6,7 @@
     "gpu"
   ],
   "editable": true,
-  "description": "Idle GPU capacity from the Klique Idle hub (github.com/clearml/klique-idle-dashboard). Idle = under 5% utilization for 10 minutes.",
+  "description": "Idle GPU capacity from the Klique Idle hub (github.com/klique-ai/idle-gpu-dashboard). Idle = under 5% utilization for 10 minutes.",
   "schemaVersion": 39,
   "version": 1,
   "time": {

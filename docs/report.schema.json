@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/clearml/klique-idle-dashboard/docs/report.schema.json",
+  "$id": "https://github.com/klique-ai/idle-gpu-dashboard/docs/report.schema.json",
   "title": "Klique Idle collector report (klique-idle.report.v1)",
   "description": "One node's view of one reporting window, POSTed by klique-idle-collector. Field meanings: docs/payload.md. Source of truth: collector/internal/report/report.go. Within v1 fields are only added, so unknown properties must be accepted.",
   "type": "object",

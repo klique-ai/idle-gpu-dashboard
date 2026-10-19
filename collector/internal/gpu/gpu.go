@@ -2,7 +2,7 @@
 // Fake simulates GPUs for development and demos on machines without them.
 package gpu
 
-import "github.com/clearml/klique-idle-dashboard/collector/internal/report"
+import "github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 
 // Source kinds, reported as collector.gpu_source.
 const (

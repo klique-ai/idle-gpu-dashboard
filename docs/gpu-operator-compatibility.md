@@ -12,12 +12,12 @@ Each configuration was checked the same way:
 
 | GPU Operator | Driver | Device mode | Toolkit config | Result |
 |---|---|---|---|---|
-| v25.3.4 | 580.82.07 | legacy (`mode=auto`) | ClearML/Klique-hardened¹ | ✅ 7/7 |
+| v25.3.4 | 580.82.07 | legacy (`mode=auto`) | Klique-hardened¹ | ✅ 7/7 |
 | v25.3.4 | 580.82.07 | legacy | vanilla (chart defaults) | ✅ 7/7 |
 | v25.3.4 | 580.82.07 | CDI (`cdi.enabled=true`, `cdi.default=true`) | vanilla | ✅ 7/7 |
 | v26.7.1 | 595.91.07 | CDI (default from v25.10; runtime `mode=cdi`, device plugin `cdi-annotations,cdi-cri`) | vanilla | ✅ 7/7 |
 | v26.7.1 | 595.91.07 | legacy (`cdi.enabled=false`) | vanilla | ✅ 7/7 |
-| v26.7.1 | 595.91.07 | legacy (`cdi.enabled=false`) | ClearML/Klique-hardened¹ | ✅ 7/7 |
+| v26.7.1 | 595.91.07 | legacy (`cdi.enabled=false`) | Klique-hardened¹ | ✅ 7/7 |
 
 ¹ The values from the Klique fractional-GPU documentation: the toolkit's
 `ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED=false` plus

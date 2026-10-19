@@ -3,7 +3,7 @@ package hub
 import (
 	"io"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/metrics"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/metrics"
 )
 
 func (h *Hub) writeMetrics(w io.Writer) {

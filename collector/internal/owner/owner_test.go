@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 )
 
 const cid = "4f1c9a2b3d4e5f60718293a4b5c6d7e8f9010203a4b5c6d7e8f90102a3b4c5d6"

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/sender"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/sender"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

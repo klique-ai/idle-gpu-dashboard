@@ -25,7 +25,7 @@ The pod reads GPUs through NVML **without requesting `nvidia.com/gpu`**, so it n
 away from workloads.
 - `runtimeClassName: auto` picks the `nvidia` RuntimeClass when it exists, which the GPU Operator creates.
 - `NVIDIA_VISIBLE_DEVICES=all` with only the `utility` capability: no compute access.
-- A read-only `/dev/null` mount at `/var/run/nvidia-container-devices/all`. This is the device plugin's own way of requesting GPUs, and it's needed where the GPU Operator is hardened to ignore the env var from unprivileged pods (the setup ClearML/Klique document). Turn it off with `nvidia.requestViaVolumeMount=false`.
+- A read-only `/dev/null` mount at `/var/run/nvidia-container-devices/all`. This is the device plugin's own way of requesting GPUs, and it's needed where the GPU Operator is hardened to ignore the env var from unprivileged pods (the setup Klique documents). Turn it off with `nvidia.requestViaVolumeMount=false`.
 - `hostPID: true` lets it match GPU processes to pods. Without it, usage is still reported, but not who is using the GPU.
 - Read-only RBAC (get nodes, list pods) for pod names and GPU allocation.
 - Non-root, read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp. About 15 MB of memory.

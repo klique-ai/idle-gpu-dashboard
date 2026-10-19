@@ -11,10 +11,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/collector"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/metrics"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/sender"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/collector"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/metrics"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/sender"
 )
 
 // Server reports the collector as healthy while its sampling loop runs.

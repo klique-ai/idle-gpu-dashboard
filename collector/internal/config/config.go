@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/envflag"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/gpu"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/envflag"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/gpu"
 )
 
 // EnvPrefix prefixes the environment variable of every flag.

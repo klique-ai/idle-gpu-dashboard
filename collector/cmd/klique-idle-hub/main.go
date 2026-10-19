@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/envflag"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/hub"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/sender"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/envflag"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/hub"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/sender"
 )
 
 // version is set at build time with -ldflags "-X main.version=...".

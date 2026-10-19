@@ -4,8 +4,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/gpu"
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/gpu"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 )
 
 // stat accumulates avg/max of a series.

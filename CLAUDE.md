@@ -74,7 +74,7 @@ type:
 
 ## Lessons from real hardware (Nebius H100, GPU Operator)
 
-- **Reading GPUs without requesting one.** The chart sets `NVIDIA_VISIBLE_DEVICES=all` and *also* mounts `/dev/null` at `/var/run/nvidia-container-devices/all`. The ClearML/Klique-documented GPU Operator config disables the env-var path for unprivileged pods (`ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED=false`); the volume mount is what works there. Verified both ways.
+- **Reading GPUs without requesting one.** The chart sets `NVIDIA_VISIBLE_DEVICES=all` and *also* mounts `/dev/null` at `/var/run/nvidia-container-devices/all`. The Klique-documented GPU Operator config disables the env-var path for unprivileged pods (`ACCEPT_NVIDIA_VISIBLE_DEVICES_ENVVAR_WHEN_UNPRIVILEGED=false`); the volume mount is what works there. Verified both ways.
 - **Driver upgrades.** The collector holds the GPU open, which blocks the GPU Operator from unloading the old driver ("driver is in use"). The chart's node affinity makes the pod leave the node while it's labelled `nvidia.com/gpu.deploy.*=paused-for-driver-upgrade`. Verified: a 595 → 580 swap completed unattended in about 3 minutes. Don't remove this rule.
 - **The GPU Operator matrix** (v25.3.4 and v26.7.1, CDI on and off, vanilla and hardened) all pass; see docs/gpu-operator-compatibility.md.
 - **Driver-container nodes.** On GPU Operator nodes the driver lives in a container (`/run/nvidia/driver`). The host has the library but no `/dev/nvidia*`, so the bare-metal binary can't read GPUs there; it reports a clear error pointing to the DaemonSet.

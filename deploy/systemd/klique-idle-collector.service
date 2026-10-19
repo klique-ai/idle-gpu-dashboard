@@ -1,6 +1,6 @@
 [Unit]
 Description=Klique Idle Collector (reports GPU, CPU and memory usage)
-Documentation=https://github.com/clearml/klique-idle-dashboard
+Documentation=https://github.com/klique-ai/idle-gpu-dashboard
 After=network-online.target nvidia-persistenced.service
 Wants=network-online.target
 

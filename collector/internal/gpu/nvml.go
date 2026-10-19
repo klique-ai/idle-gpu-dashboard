@@ -11,7 +11,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
-	"github.com/clearml/klique-idle-dashboard/collector/internal/report"
+	"github.com/klique-ai/idle-gpu-dashboard/collector/internal/report"
 )
 
 // Where to look for libnvidia-ml.so.1 when the dynamic loader can't find it.
