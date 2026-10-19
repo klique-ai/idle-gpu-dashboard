@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/clearml/klique-idle-dashboard/collector/internal/envflag"
 	"github.com/clearml/klique-idle-dashboard/collector/internal/gpu"
 )
 
@@ -118,7 +119,7 @@ func Parse(args []string, getenv func(string) string, stderr io.Writer) (*Config
 	if fs.NArg() > 0 {
 		return nil, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
-	if err := applyEnv(fs, getenv); err != nil {
+	if err := envflag.Apply(fs, EnvPrefix, getenv); err != nil {
 		return nil, err
 	}
 	if c.Version {
@@ -145,26 +146,6 @@ func Parse(args []string, getenv func(string) string, stderr io.Writer) (*Config
 		}
 	}
 	return c, c.validate()
-}
-
-// applyEnv sets every flag not given on the command line from its
-// environment variable.
-func applyEnv(fs *flag.FlagSet, getenv func(string) string) error {
-	set := map[string]bool{}
-	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
-	var err error
-	fs.VisitAll(func(f *flag.Flag) {
-		if set[f.Name] || err != nil {
-			return
-		}
-		env := EnvPrefix + strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
-		if v := getenv(env); v != "" {
-			if e := fs.Set(f.Name, v); e != nil {
-				err = fmt.Errorf("%s=%q: %w", env, v, e)
-			}
-		}
-	})
-	return err
 }
 
 func (c *Config) validate() error {

@@ -62,7 +62,7 @@ type HTTP struct {
 	sleep  func(ctx context.Context, d time.Duration) bool
 
 	mu       sync.Mutex
-	queue    []*report.Report // oldest first
+	queue    []*item // oldest first
 	stats    Stats
 	failures int
 	notify   chan struct{}
@@ -99,8 +99,25 @@ func NewHTTP(opt HTTPOptions, log *slog.Logger) (*HTTP, error) {
 	}, nil
 }
 
+// item is one encoded report waiting to be sent.
+type item struct {
+	id   string // report_id, for logs
+	body []byte
+}
+
 // Enqueue adds a report, dropping the oldest one when the queue is full.
 func (h *HTTP) Enqueue(r *report.Report) {
+	body, err := json.Marshal(r)
+	if err != nil { // can't happen with report.Report
+		h.log.Error("cannot encode report", "err", err)
+		return
+	}
+	h.EnqueueRaw(r.ReportID, body)
+}
+
+// EnqueueRaw adds an already encoded report, sent exactly as given. The hub
+// uses it to forward collector reports unchanged.
+func (h *HTTP) EnqueueRaw(id string, body []byte) {
 	h.mu.Lock()
 	if len(h.queue) >= h.opt.QueueSize {
 		h.queue[0] = nil
@@ -110,7 +127,7 @@ func (h *HTTP) Enqueue(r *report.Report) {
 			h.log.Warn("send queue full, dropping oldest report", "queue_size", h.opt.QueueSize, "dropped_total", h.stats.Dropped)
 		}
 	}
-	h.queue = append(h.queue, r)
+	h.queue = append(h.queue, &item{id: id, body: body})
 	h.mu.Unlock()
 	select {
 	case h.notify <- struct{}{}:
@@ -160,7 +177,7 @@ func (h *HTTP) Run(ctx context.Context) {
 	}
 }
 
-func (h *HTTP) head() *report.Report {
+func (h *HTTP) head() *item {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.queue) == 0 {
@@ -169,11 +186,11 @@ func (h *HTTP) head() *report.Report {
 	return h.queue[0]
 }
 
-// done removes r from the queue (unless it was already pushed out by Enqueue).
-func (h *HTTP) done(r *report.Report, rejected bool) {
+// done removes it from the queue (unless it was already pushed out by Enqueue).
+func (h *HTTP) done(it *item, rejected bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	queued := len(h.queue) > 0 && h.queue[0] == r
+	queued := len(h.queue) > 0 && h.queue[0] == it
 	if queued {
 		h.queue[0] = nil
 		h.queue = h.queue[1:]
@@ -215,11 +232,8 @@ func (h *HTTP) recordFailure(err error, rejected bool) int {
 
 type permanentError struct{ error }
 
-func (h *HTTP) post(ctx context.Context, r *report.Report) error {
-	body, err := json.Marshal(r)
-	if err != nil {
-		return &permanentError{fmt.Errorf("encode report: %w", err)}
-	}
+func (h *HTTP) post(ctx context.Context, it *item) error {
+	body := it.body
 	if h.opt.Gzip {
 		var buf bytes.Buffer
 		zw := gzip.NewWriter(&buf)

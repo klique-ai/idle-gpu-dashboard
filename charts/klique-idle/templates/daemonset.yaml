@@ -5,7 +5,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: {{ include "kic.fullname" . }}
+  name: {{ include "kic.fullname" . }}-collector
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "kic.labels" . | nindent 4 }}
@@ -24,7 +24,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- if and $secret (not .Values.existingSecret.name) }}
+        {{- if .Values.token }}
         checksum/token: {{ .Values.token | sha256sum | trunc 16 }}
         {{- end }}
         {{- with .Values.podAnnotations }}

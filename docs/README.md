@@ -8,6 +8,6 @@
 | [examples/](examples/) | everyone | Real reports from an H100 node (busy and idle) and a simulated 4-GPU node |
 | [gpu-operator-compatibility.md](gpu-operator-compatibility.md) | operators | Which NVIDIA GPU Operator versions and settings the collector was tested with |
 
-Deployment guides live next to what they deploy: [../charts/klique-idle-collector](../charts/klique-idle-collector/README.md),
+Deployment guides live next to what they deploy: [../charts/klique-idle](../charts/klique-idle/README.md),
 [../deploy/systemd](../deploy/systemd/README.md), [../deploy/slurm](../deploy/slurm/README.md),
 [../deploy/pbs](../deploy/pbs/README.md).

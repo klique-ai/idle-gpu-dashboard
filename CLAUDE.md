@@ -5,16 +5,18 @@ Guidance for working on this repository (people and coding agents alike).
 ## What this is
 
 Klique Idle Dashboard shows how much GPU capacity a cluster leaves idle and what it could produce
-instead. This repo currently holds the **collector**: a per-node agent that reports GPU, CPU and
-memory usage plus the owning pod or job of every GPU process. The server and dashboard UI consume
-its reports; their contract is [docs/payload.md](docs/payload.md), and
-[docs/server-guide.md](docs/server-guide.md) is the brief for building them.
+instead. This repo is the open-source part:
+- the **collector**, a per-node agent that reports GPU, CPU and memory usage plus the owning pod or job of every GPU process;
+- the **hub**, one per cluster, which receives the collectors' reports, serves them as Prometheus metrics with a Grafana dashboard (the default), and forwards them to Klique Cloud (the hosted dashboard) only when given an API key.
+
+Any server can consume the reports; the contract is [docs/payload.md](docs/payload.md), and
+[docs/server-guide.md](docs/server-guide.md) is the brief for building one.
 
 ```
-collector/   Go module: klique-idle-collector + mock-receiver (dev stand-in for the server)
-charts/      Helm chart: DaemonSet for Kubernetes
+collector/   Go module: klique-idle-collector + klique-idle-hub (one image)
+charts/      Helm chart `klique-idle`: collector DaemonSet + hub, Grafana dashboard JSON (charts/klique-idle/dashboards/)
 deploy/      systemd unit + installer (bare metal, Slurm, PBS nodes); Slurm/PBS guides and batch-job fallbacks
-docs/        report format, server guide, real example reports, GPU Operator compatibility
+docs/        report format, server guide, Grafana, real example reports, GPU Operator compatibility
 ```
 
 ## Commands
@@ -24,11 +26,12 @@ cd collector
 make test         # unit tests with -race; works on macOS (cgo + NVML mocks, no GPU needed)
 make vet          # go vet + gofmt check
 make run-fake     # print reports from simulated GPUs
-make kind-demo    # 3-node local Kubernetes + simulated GPUs + mock receiver (switches your kubectl context)
+make hub          # the hub on :8080 (POST /v1/reports, GET /metrics, GET /v1/nodes)
+make kind-demo    # 3-node local Kubernetes + simulated GPUs + the hub (switches your kubectl context)
 make dist         # Linux amd64/arm64 binaries (Docker buildx)
 make bundle       # per-arch tarballs: binary + install.sh + systemd unit
 make image        # multi-arch image (PUSH=1 to push)
-helm lint ../charts/klique-idle-collector --set cluster=x
+helm lint ../charts/klique-idle --set cluster=x
 ```
 
 `klique-idle-collector --once` prints exactly one report and exits. It's the fastest way to see what
@@ -38,7 +41,10 @@ a node sends.
 
 - **The report format is a public contract.** Within `klique-idle.report.v1`, only *add* fields. Renaming, removing or changing meaning requires a new schema value. When fields change, update `docs/payload.md` and regenerate the examples.
 - **Read-only, always.** The collector must never create CUDA contexts, change GPU settings or write to disk.
-- **Few dependencies:** the standard library plus `github.com/NVIDIA/go-nvml`. Kubernetes is reached with plain HTTPS; there's no client-go.
+- **Few dependencies:** the standard library plus `github.com/NVIDIA/go-nvml`. Kubernetes is reached with plain HTTPS; there's no client-go. The hub uses no GPU code and builds without cgo; Prometheus output is written by hand, with no client library.
+- **Nothing leaves the cluster unless the operator asks.** Klique Cloud forwarding happens only with an API key (`cloud.apiKey` / `--cloud-api-key`). Keep it opt-in, and keep the default endpoint the public `https://idle.klique.ai/v1/reports`.
+- **This repo is public.** No internal hostnames, registries, account IDs or links to private repos, in code, docs or history.
+- **The Grafana side stays small.** A fixed set of gauges (one series per GPU or node; nothing per process or pod), one dashboard, no alerts or recording rules. The hosted dashboard is the product; Grafana is the simple, safe default.
 - **Safe defaults:**
   - non-root, read-only filesystem, no capabilities;
   - process command lines only with `--include-cmdline`, because they can contain secrets;

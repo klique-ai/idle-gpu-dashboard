@@ -1,12 +1,14 @@
 # -- Cluster name shown on the dashboard. Required.
 cluster: ""
 
-# -- URL the collectors POST reports to. Empty prints reports to the pod logs
-# instead (or sends them to the mock receiver when mockReceiver.enabled).
+# -- Where the collectors POST reports. Empty: to the hub (hub.enabled), else
+# the pod logs. Set it only to send straight to your own server.
 endpoint: ""
 
-# -- Bearer token for the endpoint. Stored in a Secret created by the chart.
-# Prefer existingSecret for real deployments.
+# -- Bearer token the collectors send (to the hub, or to `endpoint`). The hub
+# requires it, also for GET /v1/nodes. With the hub and no token set, the chart
+# generates one and keeps it across upgrades (GitOps tools that can't look up
+# the Secret should set one). Stored in a Secret; prefer existingSecret.
 token: ""
 
 existingSecret:
@@ -49,9 +51,8 @@ collector:
   extraEnv: []
 
 image:
-  # -- Set this to where you pushed the image (`make image PUSH=1`); there is
-  # no public registry yet, so the default only works with locally loaded images.
-  repository: klique-idle-collector
+  # -- One image holds both the collector and the hub.
+  repository: kliqueai/klique-idle-collector
   # -- Defaults to the chart appVersion.
   tag: ""
   pullPolicy: IfNotPresent
@@ -144,14 +145,65 @@ updateStrategy:
   rollingUpdate:
     maxUnavailable: 10%
 
-# -- For demos and development only: an in-cluster receiver that logs every
-# report (kubectl logs deploy/<release>-mock-receiver). When enabled and
-# `endpoint` is empty, collectors send to it.
-mockReceiver:
-  enabled: false
+# The cluster hub: the collectors report to it. It serves the latest state of
+# every node as Prometheus metrics at /metrics (for Grafana), the latest
+# reports as JSON at /v1/nodes, and forwards to Klique Cloud only when
+# `cloud` is configured.
+hub:
+  enabled: true
+  # -- Forget nodes that haven't reported for this long.
+  staleAfter: 2m
+  # -- Log every report as full JSON (kubectl logs deploy/<release>-hub).
+  dump: false
+  service:
+    # -- Lets annotation-based Prometheus setups find /metrics.
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "8080"
+      prometheus.io/path: /metrics
+  # -- Extra environment variables, e.g. HTTPS_PROXY for the Klique Cloud connection.
+  extraEnv: []
   resources:
     requests:
       cpu: 10m
       memory: 32Mi
     limits:
-      memory: 128Mi
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Klique Cloud (https://idle.klique.ai): OFF unless an API key is set. With a
+# key, the hub forwards every report there, unchanged; without one, nothing
+# leaves the cluster.
+cloud:
+  # -- API key from your Klique Cloud account. Stored in a Secret created by
+  # the chart; prefer existingSecret.
+  apiKey: ""
+  existingSecret:
+    # -- Name of an existing Secret holding the API key (overrides `apiKey`).
+    name: ""
+    # -- Key of the API key inside that Secret.
+    key: api-key
+  endpoint: https://idle.klique.ai/v1/reports
+
+metrics:
+  serviceMonitor:
+    # -- Create a ServiceMonitor for the hub (needs the Prometheus Operator,
+    # e.g. kube-prometheus-stack).
+    enabled: false
+    # -- Match the collectors' report interval, so no 10 s window is missed.
+    interval: 10s
+    # -- Extra labels, if your Prometheus selects ServiceMonitors by label
+    # (e.g. {release: kube-prometheus-stack}).
+    labels: {}
+
+grafanaDashboard:
+  # -- Ship the Grafana dashboard as a ConfigMap for Grafana's dashboard
+  # sidecar (on by default in kube-prometheus-stack). Without the sidecar,
+  # import dashboards/klique-idle.json by hand.
+  enabled: false
+  labels:
+    grafana_dashboard: "1"
+  # -- e.g. {grafana_folder: GPUs} with the sidecar's folderAnnotation set.
+  annotations: {}

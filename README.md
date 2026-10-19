@@ -3,8 +3,12 @@
 See how much GPU capacity your clusters leave idle, and what it could be producing instead.
 
 A small **collector** runs on every GPU node (Kubernetes, bare metal, Slurm or PBS). It reads GPU,
-CPU and memory usage and works out which pod or job owns each GPU. It then sends a short JSON
-report to a **server**, which turns the data into the dashboard.
+CPU and memory usage and works out which pod or job owns each GPU. Every 10 s it sends a short JSON
+report to the cluster's **hub**, which:
+
+- serves the latest state of every GPU as **Prometheus metrics**, so you can chart idle capacity in
+  **Grafana** (a ready-made dashboard is included). This is the default; nothing leaves your cluster;
+- forwards the reports to **Klique Cloud** (https://idle.klique.ai) only if you give it an API key.
 
 ```
  GPU node                                    GPU node
@@ -14,10 +18,12 @@ report to a **server**, which turns the data into the dashboard.
 │  /proc → CPU, memory, owners  │            │   service or batch job)      │
 │  scheduler → names, allocation│            │                              │
 └──────────────┬───────────────┘            └──────────────┬───────────────┘
-               │  HTTPS POST, one JSON report every 10 s    │
+               │  POST, one JSON report every 10 s          │
                └──────────────────────┬─────────────────────┘
                                       ▼
-                         server + dashboard UI (separate)
+                         klique-idle-hub (one per cluster)
+                          ├─ /metrics ◄── Prometheus ──► Grafana          (default)
+                          └─ forwards reports ──► Klique Cloud            (opt-in: API key)
 ```
 
 ## Status
@@ -25,11 +31,12 @@ report to a **server**, which turns the data into the dashboard.
 | Part | State |
 |---|---|
 | Collector (Go, single binary, amd64 + arm64) | ready; unit-tested; validated on a real NVIDIA H100 (utilization, memory, power and process attribution match `nvidia-smi`) |
+| Hub (Prometheus metrics, Grafana dashboard, optional Klique Cloud forwarding) | new in 0.2.0; unit-tested, validated end to end with Prometheus + Grafana |
 | Kubernetes (Helm chart, DaemonSet) | ready; tested on an H100 node with NVIDIA GPU Operator v25.3.4 and v26.7.1, CDI on and off, vanilla and hardened ([results](docs/gpu-operator-compatibility.md)), and on a 3-node kind cluster |
 | Bare metal (systemd service + installer) | ready; validated on an H100 VM with a host-installed driver (580.173.02): numbers match `nvidia-smi`, processes attributed to their systemd unit, runs non-root; install, upgrade and uninstall tested |
 | Slurm | scheduler integration tested against Slurm 23.11; no-root batch-job fallback tested |
 | PBS (OpenPBS / PBS Professional) | draft: written against documented `pbsnodes`/`qstat` JSON, not run against a live PBS yet |
-| Server and dashboard UI | not part of this collector; the data contract is [docs/payload.md](docs/payload.md) |
+| Klique Cloud | hosted dashboard (separate product); any server can take the same reports: the data contract is [docs/payload.md](docs/payload.md) |
 
 ## Quick start
 
@@ -39,19 +46,23 @@ Requirements: NVIDIA GPU nodes with the driver and NVIDIA container toolkit. The
 Operator installs both.
 
 ```sh
-helm install klique-idle-collector ./charts/klique-idle-collector \
-  --namespace klique-idle --create-namespace \
-  --set image.repository=<your-registry>/klique-idle-collector --set image.tag=<version> \
-  --set cluster=prod-eu-1 \
-  --set endpoint=https://dashboard.example.com/v1/reports \
-  --set existingSecret.name=klique-idle-token   # a Secret with key "token"
+helm install klique-idle oci://registry-1.docker.io/kliqueai/klique-idle \
+  --namespace klique-idle --create-namespace --set cluster=prod-eu-1
 ```
+
+That installs the collectors and the hub, and nothing leaves the cluster. Then pick where the data goes:
+
+| Goal | Add |
+|---|---|
+| **Grafana** (default): Prometheus scrapes the hub | with kube-prometheus-stack: `--set metrics.serviceMonitor.enabled=true --set metrics.serviceMonitor.labels.release=<its release name> --set grafanaDashboard.enabled=true`; any other setup: [docs/grafana.md](docs/grafana.md) |
+| **Klique Cloud**: the hosted dashboard | `--set cloud.apiKey=<key from https://idle.klique.ai>` (or `cloud.existingSecret.name=<Secret>`) |
+| **Your own server** | `--set endpoint=https://your-server/v1/reports --set hub.enabled=false` (collectors post straight to it; see [docs/payload.md](docs/payload.md)) |
 
 - **Where it runs.** The DaemonSet runs on nodes labelled `nvidia.com/gpu.present=true`, which GPU Operator nodes are. Set `nodeSelector` if your labels differ.
 - **How it reads GPUs.** Through the NVIDIA runtime, with `NVIDIA_VISIBLE_DEVICES=all` and utility capability only. It **does not request `nvidia.com/gpu`**, so it never takes a GPU away from workloads.
 - **What it needs.** `hostPID` (to match GPU processes to pods), read-only RBAC (get nodes, list pods) and roughly 15 MB of memory. It runs as non-root on a read-only filesystem with no capabilities.
 
-See [charts/klique-idle-collector/values.yaml](charts/klique-idle-collector/values.yaml) for every option.
+See [charts/klique-idle/values.yaml](charts/klique-idle/values.yaml) for every option.
 
 ### Bare metal (also the recommended way on Slurm and PBS nodes)
 
@@ -71,6 +82,13 @@ The installer:
 Re-running it upgrades in place, and `--uninstall` removes it. To roll it out to many nodes, use
 your usual tool, e.g. `pdsh -w gpu[01-64] 'sudo /shared/kic/install.sh ...'`.
 
+`--endpoint` decides where the data goes:
+- **Grafana:** run one hub for the cluster on any host (`klique-idle-hub`, in the same tarball and
+  image), point the collectors at `http://<hub-host>:8080/v1/reports`, and let Prometheus scrape
+  `http://<hub-host>:8080/metrics` ([docs/grafana.md](docs/grafana.md)).
+- **Klique Cloud:** `--endpoint https://idle.klique.ai/v1/reports` with your API key as the token
+  file, or run a hub with `--cloud-api-key-file`.
+
 ### Slurm and PBS
 
 Install the service on every node as above. The collector detects the scheduler and adds job
@@ -83,7 +101,7 @@ and [deploy/pbs](deploy/pbs/README.md).
 ```sh
 cd collector
 make run-fake        # reports from 8 simulated GPUs, printed to the terminal
-make kind-demo       # local 3-node Kubernetes cluster + simulated GPUs + a mock server
+make kind-demo       # local 3-node Kubernetes cluster + simulated GPUs + the hub
 ```
 
 Simulated reports are marked `"gpu_source": "fake"`.
@@ -149,11 +167,12 @@ variable: `--report-interval` → `KLIQUE_IDLE_REPORT_INTERVAL`. Flags win over 
 ## Development
 
 ```
-collector/            Go module: the collector and a mock receiver
-  cmd/                klique-idle-collector, mock-receiver
+collector/            Go module: the collector and the hub
+  cmd/                klique-idle-collector, klique-idle-hub
   internal/           report (data contract), gpu (NVML + simulator), host, owner,
-                      scheduler (kubernetes, slurm, pbs), sender, collector, config, health
-charts/               Helm chart
+                      scheduler (kubernetes, slurm, pbs), sender, collector, config, health,
+                      hub (metrics, forwarding), envflag
+charts/               Helm chart (collector DaemonSet + hub) and the Grafana dashboard
 deploy/               systemd unit + installer, Slurm and PBS guides
 docs/                 data contract and examples
 ```

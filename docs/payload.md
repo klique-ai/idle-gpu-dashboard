@@ -8,7 +8,11 @@ explains what a server should do with them.
 
 ## HTTP
 
-Every node sends one report per reporting window, every 10 s by default.
+Every node sends one report per reporting window, every 10 s by default. On Kubernetes the reports
+usually arrive through the cluster's hub, which forwards each one byte for byte (with
+`User-Agent: klique-idle-hub/<version>` and the hub's API key), in order per node. The hub holds
+reports it couldn't forward yet in memory, so a hub restart during a long server outage can lose
+some.
 
 ```
 POST <endpoint URL, e.g. https://dashboard.example.com/v1/reports>
@@ -144,6 +148,6 @@ Newest first. Every change to the report gets a line here.
 ## Test data without GPUs
 
 - `cd collector && make run-fake`: prints reports from 8 simulated GPUs to the terminal (works on macOS).
-- `cd collector && make mock-receiver`: a stand-in server on `:8080` that logs each report. `GET /v1/nodes` returns the latest report per node.
-- `cd collector && make kind-demo`: a local 3-node Kubernetes cluster with simulated GPUs sending to the mock receiver.
+- `cd collector && make hub`: the hub on `:8080`, logging each report. `GET /v1/nodes` returns the latest report per node.
+- `cd collector && make kind-demo`: a local 3-node Kubernetes cluster with simulated GPUs sending to the hub.
 - Point a collector at your own server: `klique-idle-collector --gpu fake --endpoint http://localhost:8000/v1/reports --cluster dev`.

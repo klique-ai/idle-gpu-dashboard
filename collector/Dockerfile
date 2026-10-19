@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/root/go/pkg/mod --mount=type=cache,target=/root/.
     mkdir -p /out; \
     CGO_ENABLED=1 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
       -o /out/klique-idle-collector ./cmd/klique-idle-collector; \
-    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/mock-receiver ./cmd/mock-receiver; \
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/klique-idle-hub ./cmd/klique-idle-hub; \
     need="$(readelf -W --dyn-syms /out/klique-idle-collector | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -n1)"; \
     echo "klique-idle-collector (${TARGETARCH}) needs glibc >= ${need}"; \
     if [ "$(printf '%s\n%s\n' "$need" "$GLIBC" | sort -V | tail -n1)" != "$GLIBC" ]; then \
@@ -58,5 +58,5 @@ COPY --from=build /out/ /
 # The nossl variant leaves out OpenSSL, which Go doesn't use (it has its own TLS).
 # Debug with: kubectl exec <pod> -- klique-idle-collector --once
 FROM gcr.io/distroless/base-nossl-debian12:nonroot
-COPY --from=build /out/klique-idle-collector /out/mock-receiver /usr/local/bin/
+COPY --from=build /out/klique-idle-collector /out/klique-idle-hub /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/klique-idle-collector"]

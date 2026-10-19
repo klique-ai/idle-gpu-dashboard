@@ -1,0 +1,171 @@
+{{- $cloudSecret := include "kic.cloudSecretName" . -}}
+{{- if and $cloudSecret (not .Values.hub.enabled) }}
+{{- fail "cloud.apiKey / cloud.existingSecret need hub.enabled=true (or send straight to Klique Cloud with endpoint + token)" }}
+{{- end }}
+{{- if and $cloudSecret .Values.endpoint }}
+{{- fail "cloud.apiKey forwards through the hub, but `endpoint` sends the collectors elsewhere: unset endpoint (or send straight to Klique Cloud with endpoint + token and no cloud.*)" }}
+{{- end }}
+{{- if .Values.hub.enabled }}
+{{- $secret := include "kic.secretName" . -}}
+# The cluster hub: collectors report here. Serves Prometheus metrics at
+# /metrics and forwards to Klique Cloud only when cloud.apiKey is set.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kic.fullname" . }}-hub
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kic.hubSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kic.hubSelectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.token }}
+        checksum/token: {{ .Values.token | sha256sum | trunc 16 }}
+        {{- end }}
+        {{- if and $cloudSecret (not .Values.cloud.existingSecret.name) }}
+        checksum/cloud: {{ .Values.cloud.apiKey | sha256sum | trunc 16 }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: hub
+          image: {{ include "kic.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/usr/local/bin/klique-idle-hub"]
+          env:
+            - name: KLIQUE_IDLE_HUB_STALE_AFTER
+              value: {{ .Values.hub.staleAfter | quote }}
+            - name: KLIQUE_IDLE_HUB_DUMP
+              value: {{ .Values.hub.dump | quote }}
+            - name: KLIQUE_IDLE_HUB_LOG_LEVEL
+              value: {{ .Values.collector.logLevel | quote }}
+            - name: KLIQUE_IDLE_HUB_LOG_FORMAT
+              value: {{ .Values.collector.logFormat | quote }}
+            {{- if $secret }}
+            - name: KLIQUE_IDLE_HUB_TOKEN_FILE
+              value: /etc/klique-idle/token
+            {{- end }}
+            {{- if $cloudSecret }}
+            - name: KLIQUE_IDLE_HUB_CLOUD_ENDPOINT
+              value: {{ .Values.cloud.endpoint | quote }}
+            - name: KLIQUE_IDLE_HUB_CLOUD_API_KEY_FILE
+              value: /etc/klique-idle/cloud/api-key
+            {{- end }}
+            {{- with .Values.hub.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.hub.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if or $secret $cloudSecret }}
+          volumeMounts:
+            {{- if $secret }}
+            - name: token
+              mountPath: /etc/klique-idle/token
+              subPath: {{ include "kic.secretKey" . }}
+              readOnly: true
+            {{- end }}
+            {{- if $cloudSecret }}
+            - name: cloud
+              mountPath: /etc/klique-idle/cloud/api-key
+              subPath: {{ include "kic.cloudSecretKey" . }}
+              readOnly: true
+            {{- end }}
+          {{- end }}
+      {{- if or $secret $cloudSecret }}
+      volumes:
+        {{- if $secret }}
+        - name: token
+          secret:
+            secretName: {{ $secret }}
+            defaultMode: 0440
+        {{- end }}
+        {{- if $cloudSecret }}
+        - name: cloud
+          secret:
+            secretName: {{ $cloudSecret }}
+            defaultMode: 0440
+        {{- end }}
+      {{- end }}
+      {{- with .Values.hub.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hub.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hub.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kic.fullname" . }}-hub
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hub
+  {{- with .Values.hub.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  selector:
+    {{- include "kic.hubSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- if .Values.metrics.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "kic.fullname" . }}-hub
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    app.kubernetes.io/component: hub
+    {{- with .Values.metrics.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "kic.hubSelectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

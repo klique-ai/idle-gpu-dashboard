@@ -1,0 +1,22 @@
+{{- if .Values.grafanaDashboard.enabled }}
+# The Grafana dashboard, for Grafana's dashboard sidecar (kube-prometheus-stack
+# loads ConfigMaps labelled grafana_dashboard=1). Without the sidecar, import
+# dashboards/klique-idle.json from this chart by hand.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kic.fullname" . }}-grafana-dashboard
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kic.labels" . | nindent 4 }}
+    {{- with .Values.grafanaDashboard.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.grafanaDashboard.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  klique-idle.json: |-
+    {{- .Files.Get "dashboards/klique-idle.json" | nindent 4 }}
+{{- end }}

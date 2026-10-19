@@ -22,7 +22,7 @@ app.kubernetes.io/name: {{ include "kic.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{/* Selector of the collector DaemonSet; distinct from the mock receiver's. */}}
+{{/* Selector of the collector DaemonSet; distinct from the hub's. */}}
 {{- define "kic.collectorSelectorLabels" -}}
 {{ include "kic.selectorLabels" . }}
 app.kubernetes.io/component: collector
@@ -40,12 +40,30 @@ app.kubernetes.io/component: collector
 {{- printf "%s:%s" .Values.image.repository (default .Chart.AppVersion .Values.image.tag) -}}
 {{- end -}}
 
-{{/* Secret holding the token, or "" when there is none. */}}
+{{/*
+Secret holding the token, or "" when there is none. With the hub and no token
+given, the chart generates one, so the hub never accepts anonymous reports or
+serves /v1/nodes to any pod in the cluster.
+*/}}
 {{- define "kic.secretName" -}}
 {{- if .Values.existingSecret.name -}}
 {{- .Values.existingSecret.name -}}
-{{- else if .Values.token -}}
+{{- else if or .Values.token (and .Values.hub.enabled (not .Values.endpoint)) -}}
 {{- include "kic.fullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{/* The token to store: the given one, the one already stored (upgrades), or a new random one. */}}
+{{- define "kic.tokenValue" -}}
+{{- if .Values.token -}}
+{{- .Values.token -}}
+{{- else -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace (include "kic.fullname" .) -}}
+{{- if and $existing $existing.data (index $existing.data "token") -}}
+{{- index $existing.data "token" | b64dec -}}
+{{- else -}}
+{{- randAlphaNum 32 -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 
@@ -53,13 +71,31 @@ app.kubernetes.io/component: collector
 {{- if .Values.existingSecret.name -}}{{ .Values.existingSecret.key }}{{- else -}}token{{- end -}}
 {{- end -}}
 
-{{/* Where collectors send reports. */}}
+{{- define "kic.hubSelectorLabels" -}}
+{{ include "kic.selectorLabels" . }}
+app.kubernetes.io/component: hub
+{{- end -}}
+
+{{/* Where collectors send reports: `endpoint`, else the hub, else the pod logs. */}}
 {{- define "kic.endpoint" -}}
 {{- if .Values.endpoint -}}
 {{- .Values.endpoint -}}
-{{- else if .Values.mockReceiver.enabled -}}
-{{- printf "http://%s-mock-receiver.%s.svc:8080/v1/reports" (include "kic.fullname" .) .Release.Namespace -}}
+{{- else if .Values.hub.enabled -}}
+{{- printf "http://%s-hub.%s.svc:8080/v1/reports" (include "kic.fullname" .) .Release.Namespace -}}
 {{- end -}}
+{{- end -}}
+
+{{/* Secret holding the Klique Cloud API key, or "" when forwarding is off. */}}
+{{- define "kic.cloudSecretName" -}}
+{{- if .Values.cloud.existingSecret.name -}}
+{{- .Values.cloud.existingSecret.name -}}
+{{- else if .Values.cloud.apiKey -}}
+{{- printf "%s-cloud" (include "kic.fullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "kic.cloudSecretKey" -}}
+{{- if .Values.cloud.existingSecret.name -}}{{ .Values.cloud.existingSecret.key }}{{- else -}}api-key{{- end -}}
 {{- end -}}
 
 {{/*

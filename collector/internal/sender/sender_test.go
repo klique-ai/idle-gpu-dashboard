@@ -159,15 +159,15 @@ func TestQueueDropsOldestWhenFull(t *testing.T) {
 	if s := h.Stats(); s.Pending != 2 || s.Dropped != 1 {
 		t.Fatalf("stats = %+v", s)
 	}
-	if h.head().ReportID != "2" {
-		t.Fatalf("head = %s, want 2", h.head().ReportID)
+	if h.head().id != "2" {
+		t.Fatalf("head = %s, want 2", h.head().id)
 	}
 }
 
 func TestRejectedReportsCountedOnceAndDontSlowRetries(t *testing.T) {
 	h := newSender(t, "http://127.0.0.1:1", HTTPOptions{QueueSize: 1})
-	inFlight := rep("1")
-	h.Enqueue(inFlight)
+	h.Enqueue(rep("1"))
+	inFlight := h.head()
 	h.Enqueue(rep("2")) // queue full: evicts the in-flight report, Dropped=1
 	h.done(inFlight, true)
 	if s := h.Stats(); s.Dropped != 1 || s.Pending != 1 {

@@ -119,5 +119,5 @@ done
 ```
 
 Simulated GPUs switch between busy, idle and idle-with-memory-held every few minutes, so idle
-detection has something to find. `make mock-receiver` shows what a minimal receiver logs, and
+detection has something to find. `make hub` shows what the cluster hub receives (and serves as metrics), and
 `make kind-demo` runs the whole Kubernetes setup locally.

@@ -1,0 +1,14 @@
+apiVersion: v2
+name: klique-idle
+description: Klique Idle collector (per-node GPU, CPU and memory usage) and hub (Prometheus metrics, optional Klique Cloud forwarding)
+type: application
+version: 0.2.1
+appVersion: "0.2.1"
+kubeVersion: ">= 1.24.0-0"
+home: https://klique.ai
+keywords:
+  - gpu
+  - nvidia
+  - idle
+  - monitoring
+  - klique
