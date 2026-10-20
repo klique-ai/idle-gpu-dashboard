@@ -10,40 +10,6 @@ Most clusters have more idle capacity than their owners realize. It hides in the
 
 ---
 
-## Why it matters
-
-GPUs are the most expensive part of an AI cluster, and most of them are busy far less often than their owners assume. Industry estimates put typical idle capacity at 20–45% of a cluster, and published research and surveys point the same way:
-
-| Finding | Source |
-|---|---|
-| GPU utilization averaged **5%** across the Kubernetes clusters analyzed, drawn from tens of thousands of clusters. | [Cast AI, 2026 State of Kubernetes Optimization Report](https://cast.ai/press-release/2026-state-of-kubernetes-optimization-report/) (April 2026) |
-| More than **80%** of enterprises that run their own GPUs report utilization of 50% or less. | [VentureBeat Research survey of 573 technical leaders](https://venturebeat.com/orchestration/wall-street-is-debating-the-ai-buildout-enterprises-just-answered-86-say-their-gpus-run-at-half-capacity-or-less) (July 2026) |
-| In a 6,742-GPU production cluster at Alibaba, the median job used **4.2%** of a GPU's compute, and only 7% of measurements showed heavy (95%+) utilization. | [Weng et al., "MLaaS in the Wild", NSDI 2022](https://www.usenix.org/conference/nsdi22/presentation/weng) |
-| In Microsoft's multi-tenant deep learning cluster, GPUs that were allocated to jobs averaged about **52%** utilization, so nearly half their cycles went unused. | [Jeon et al., "Analysis of Large-Scale Multi-Tenant GPU Clusters for DNN Training Workloads", USENIX ATC 2019](https://arxiv.org/abs/1901.05758) |
-
-These are industry numbers, but every cluster is unique. Your workloads, schedules and teams leave gaps that no survey can predict. Finding your real number is now easy and free: install Klique Idle GPU Dashboard, and within a day you'll see exactly how much of your GPU capacity sits idle, where it hides, and what it's worth.
-
----
-
-## What you get
-
-- **A live map of every GPU** in every cluster: busy, idle, idle but holding memory, or offline.
-- **Idle history** per GPU, per node and per cluster, over 24 hours, 7 days, 30 days and 12 months.
-- **A savings estimate in dollars and tokens**, based on a model you pick and real per-GPU throughput.
-- **One view across sites and clusters** in the hosted dashboard.
-- **Your data, your way:** a standard Prometheus endpoint and a ready-made Grafana dashboard, so you can keep everything in-house.
-- **Concrete tips** for recovering capacity, such as nodes that suit a smaller model, GPUs held by stale jobs, and recurring idle windows.
-
-## Who it's for
-
-| If you are… | Klique Idle GPU Dashboard helps you… |
-|---|---|
-| **A cluster or infrastructure admin** (Kubernetes, Slurm, PBS or bare metal) | See real idle patterns per node and GPU, find stuck or forgotten allocations, and spot nodes that are reserved but unused. Without touching the scheduler. |
-| **An MLOps or platform engineer** | Size how much internal inference capacity is already sitting in the cluster, and which models fit the hardware you have. |
-| **FinOps or infrastructure leadership** | Put a dollar figure on unused capacity, compare it with commercial API spend, and track utilization across sites over time. |
-
----
-
 ## How it works
 
 Klique Idle GPU Dashboard runs a small **collector** on every GPU node. Every 2 seconds it reads:
@@ -71,7 +37,101 @@ Every installation can send its data to any of these, separately or together:
 
 ![Deployment on Kubernetes (Helm chart: a hub plus a collector DaemonSet) and on bare metal, Slurm and PBS (a collector systemd service on every GPU node)](docs/images/deployment.svg)
 
-### Platform status
+---
+
+## Using the dashboard
+
+![The hosted Klique Idle GPU Dashboard: fleet overview tiles, then a cluster card with its GPU state bar, idle history, a panel per node, the savings engine and collector health](docs/images/dashboard.png)
+
+### Fleet overview
+
+Four numbers for your whole fleet:
+
+- **Potential value:** what your idle capacity would be worth per year if it generated tokens, summed across clusters, with each model priced at its AWS Bedrock rate. It also shows what the last 12 months of idle time would have been worth (*left on the table*).
+- **Token velocity potential:** the output tokens per second your idle GPUs could serve right now, using the best model for each GPU.
+- **Harvestable now:** how many GPUs have been idle for 10 minutes or more.
+- **Idle, last 30 days:** the share of GPU time spent idle, and the idle GPU-hours recorded.
+
+Figures based on only a few hours of samples are marked as early estimates.
+
+### Cluster card
+
+Each cluster gets a card with:
+
+- **Summary:** node and GPU counts, GPU models and platform, a bar of busy, idle, memory-held and unknown GPUs, the 30-day idle share, and when the last report arrived.
+- **Idle GPUs over time:** for the last 24 hours, 7 days, 30 days or 12 months.
+- **Nodes:** a panel per node with every GPU's state and its current compute and memory use, what the node's idle GPUs are worth per year, and a compute, memory and whole-node-idle history.
+- **Savings engine:** a row for each model and GPU type, with how many replicas fit, tokens per second, value per year and value left on the table. Each throughput figure is marked *measured* or *derived*, and **How?** explains it.
+- **Collector health:** each node's status, when it last reported, and how many reports were dropped.
+- **See how we calculate it:** the full savings breakdown.
+
+### GPU states
+
+| State | Meaning |
+|---|---|
+| **Busy** | Utilization reached 5% or more. The cell fills to the GPU's utilization. |
+| **Idle (free)** | Utilization under 5%, and under 5% of the GPU's memory in use. Counted toward savings. |
+| **Idle (memory held)** | Utilization under 5%, but 5% or more of the GPU's memory still in use, usually a stale notebook or a hung job. **Not** counted toward savings, but flagged as reclaimable. |
+| **Offline** | No heartbeat from the node's collector. |
+| **Unknown** | Utilization or memory isn't reported, as with GPUs split into MIG partitions. Never counted as idle. |
+
+Each GPU gets a state for every 10-second report, based on that window's **peak**, not its average. A GPU that touches 5% utilization even once in those 10 seconds counts as busy, so short bursts of work are never mistaken for idle time.
+
+Two views use these states differently:
+
+- **Idle right now** counts a GPU only after it has been idle for 10 minutes in a row, so short gaps between jobs don't show up as available capacity.
+- **Idle hours and savings** count every idle window, however short.
+
+The thresholds are the same for every customer on the hosted dashboard.
+
+### Use your own monitoring stack
+
+The hosted dashboard is optional. Klique Idle GPU Dashboard exposes everything it collects through a standard Prometheus `/metrics` endpoint, in Prometheus text format, so any compatible tool can scrape it: Prometheus, the OpenTelemetry Collector, Grafana Alloy and others.
+
+- **On Kubernetes**, the hub serves the endpoint, one per cluster.
+- **On bare metal, Slurm and PBS**, each node serves it on port `9478`, to the node itself by default. Install with `--listen :9478` to let a Prometheus on another host scrape it.
+- **A ready-made Grafana dashboard** is included to start from ([setup](docs/grafana.md)). It counts a GPU as idle when its utilization stays under 5% for 10 minutes.
+- **A small JSON API** at `/v1/nodes` returns the latest report from each node.
+
+There's no database to run. Your Prometheus stores the history, for as long as you keep it.
+
+---
+
+## Why it matters
+
+GPUs are the most expensive part of an AI cluster, and most of them are busy far less often than their owners assume. Industry estimates put typical idle capacity at 20–45% of a cluster, and published research and surveys point the same way:
+
+| Finding | Source |
+|---|---|
+| GPU utilization averaged **5%** across the Kubernetes clusters analyzed, drawn from tens of thousands of clusters. | [Cast AI, 2026 State of Kubernetes Optimization Report](https://cast.ai/press-release/2026-state-of-kubernetes-optimization-report/) (April 2026) |
+| More than **80%** of enterprises that run their own GPUs report utilization of 50% or less. | [VentureBeat Research survey of 573 technical leaders](https://venturebeat.com/orchestration/wall-street-is-debating-the-ai-buildout-enterprises-just-answered-86-say-their-gpus-run-at-half-capacity-or-less) (July 2026) |
+| In a 6,742-GPU production cluster at Alibaba, the median job used **4.2%** of a GPU's compute, and only 7% of measurements showed heavy (95%+) utilization. | [Weng et al., "MLaaS in the Wild", NSDI 2022](https://www.usenix.org/conference/nsdi22/presentation/weng) |
+| In Microsoft's multi-tenant deep learning cluster, GPUs that were allocated to jobs averaged about **52%** utilization, so nearly half their cycles went unused. | [Jeon et al., "Analysis of Large-Scale Multi-Tenant GPU Clusters for DNN Training Workloads", USENIX ATC 2019](https://arxiv.org/abs/1901.05758) |
+
+These are industry numbers, but every cluster is unique. Your workloads, schedules and teams leave gaps that no survey can predict. Finding your real number is now easy and free: install Klique Idle GPU Dashboard, and within a day you'll see exactly how much of your GPU capacity sits idle, where it hides, and what it's worth.
+
+---
+
+## What you get
+
+- **A live map of every GPU** in every cluster: busy, idle, idle but holding memory, or offline.
+- **Idle history** per GPU, per node and per cluster, over 24 hours, 7 days, 30 days and 12 months.
+- **A savings estimate in dollars and tokens**, based on a model you pick and real per-GPU throughput.
+- **One view across all your clusters** in the hosted dashboard.
+- **Your data, your way:** a standard Prometheus endpoint and a ready-made Grafana dashboard, so you can keep everything in-house.
+- **A per-model breakdown** of what each cluster's idle GPUs could produce, so you can see which models suit your hardware.
+
+## Who it's for
+
+| If you are… | Klique Idle GPU Dashboard helps you… |
+|---|---|
+| **A cluster or infrastructure admin** (Kubernetes, Slurm, PBS or bare metal) | See real idle patterns per node and GPU, find stuck or forgotten allocations, and spot nodes that are reserved but unused. Without touching the scheduler. |
+| **An MLOps or platform engineer** | Size how much internal inference capacity is already sitting in the cluster, and which models fit the hardware you have. |
+| **FinOps or infrastructure leadership** | Put a dollar figure on unused capacity, compare it with commercial API spend, and track utilization across clusters over time. |
+
+---
+
+## Platform status
 
 | Part | Status |
 |---|---|
@@ -172,7 +232,7 @@ Simulated reports are marked `"gpu_source": "fake"`.
 | | Hosted dashboard | Your own Prometheus and Grafana |
 |---|---|---|
 | What leaves your network | The reports described in [What leaves the node](#what-leaves-the-node), over HTTPS to `idle.klique.ai` | Nothing |
-| What you see | Every site and cluster, savings estimates, model comparisons and tips | A ready-made Grafana dashboard of GPU utilization and idle time, to build on |
+| What you see | All your clusters in one place, savings estimates and model comparisons | A ready-made Grafana dashboard of GPU utilization and idle time, to build on |
 | Data retention | Detailed 10-second data for 7 days, hourly summaries for about 13 months | Up to your own Prometheus |
 | Best for | Multi-site fleets, leadership and FinOps reporting | Air-gapped or regulated environments, and teams with an existing monitoring stack |
 
@@ -182,73 +242,6 @@ You can use both at once. The Klique dashboard is available only as a hosted ser
 
 1. **Nodes start reporting.** The hosted dashboard shows the number of reporting nodes rising to the total. On Kubernetes, the hub appears first.
 2. **Live tiles appear right away.** Savings projections firm up after about **24 hours** of samples, and become more representative as history builds up over weeks.
-
----
-
-## Using the dashboard
-
-### Fleet view
-
-The top of the dashboard answers three questions for your whole organization:
-
-- **Potential savings (per year):** what your recent idle capacity would be worth if it generated tokens, based on the last 30 days.
-- **Left on the table:** what the idle time recorded over the last 12 months would have been worth, at today's prices.
-- **Idle right now:** how many GPUs have been idle for at least the last 10 minutes, how many tokens per second they could produce, and roughly how many concurrent users that would serve.
-
-Below that, switch between **sites** with the tabs, and scroll through the **clusters** in each site.
-
-### Cluster card
-
-Each cluster gets a card with:
-
-- **GPU map:** one cell per GPU, colored by state (see [GPU states](#gpu-states)).
-- **Nodes, most idle first:** per-GPU bars plus a 24-hour compute and memory trace, with whole-node idle periods highlighted.
-- **Token model selector:** pick the model you'd run on this cluster's idle GPUs. The card shows how many GPUs one replica of that model needs on this hardware, and recalculates everything.
-- **Projected savings and left on the table** for this cluster.
-- **Idle now, harvestable now** (tokens per second and number of replicas) and **concurrent users**.
-- **Idle GPUs over time** for 24 hours, 7 days, 30 days or 12 months.
-- **Tips**: observations specific to this cluster's idle patterns (see [Getting value](#getting-value-from-klique-idle-gpu-dashboard)).
-- **How is this calculated?** opens the full savings breakdown with adjustable assumptions.
-
-### Node detail
-
-Click any node to see:
-
-- Collector status and last heartbeat.
-- Idle GPUs right now, idle GPU-hours over the last 24 hours, and the tokens those hours could have produced.
-- Host CPU and memory, GPU model and memory.
-- A per-GPU table with current state, compute, memory, a 24-hour trace, and idle (or memory-held) hours.
-- An **Eligible for Klique** toggle. Turn it off for nodes you keep free on purpose, such as hot spares or interactive nodes, so they don't inflate your numbers.
-
-### GPU states
-
-| State | Meaning |
-|---|---|
-| **Busy** | Utilization reached 5% or more. The cell fills to the GPU's utilization. |
-| **Idle (free)** | Utilization under 5%, and under 5% of the GPU's memory in use. Counted toward savings. |
-| **Idle (memory held)** | Utilization under 5%, but 5% or more of the GPU's memory still in use, usually a stale notebook or a hung job. **Not** counted toward savings, but flagged as reclaimable. |
-| **Offline** | No heartbeat from the node's collector. |
-| **Unknown** | Utilization or memory isn't reported, as with GPUs split into MIG partitions. Never counted as idle. |
-
-Each GPU gets a state for every 10-second report, based on that window's **peak**, not its average. A GPU that touches 5% utilization even once in those 10 seconds counts as busy, so short bursts of work are never mistaken for idle time.
-
-Two views use these states differently:
-
-- **Idle right now** counts a GPU only after it has been idle for 10 minutes in a row, so short gaps between jobs don't show up as available capacity.
-- **Idle hours and savings** count every idle window, however short.
-
-The thresholds are the same for every customer on the hosted dashboard.
-
-### Use your own monitoring stack
-
-The hosted dashboard is optional. Klique Idle GPU Dashboard exposes everything it collects through a standard Prometheus `/metrics` endpoint, in Prometheus text format, so any compatible tool can scrape it: Prometheus, the OpenTelemetry Collector, Grafana Alloy and others.
-
-- **On Kubernetes**, the hub serves the endpoint, one per cluster.
-- **On bare metal, Slurm and PBS**, each node serves it on port `9478`, to the node itself by default. Install with `--listen :9478` to let a Prometheus on another host scrape it.
-- **A ready-made Grafana dashboard** is included to start from ([setup](docs/grafana.md)). It counts a GPU as idle when its utilization stays under 5% for 10 minutes.
-- **A small JSON API** at `/v1/nodes` returns the latest report from each node.
-
-There's no database to run. Your Prometheus stores the history, for as long as you keep it.
 
 ---
 
@@ -271,7 +264,7 @@ The numbers are deliberately conservative:
 - **Memory-held** GPUs are excluded until reclaimed.
 - Days before the collectors were installed count as **zero**. Klique Idle GPU Dashboard never back-fills estimates.
 
-You can adjust the assumptions in the *How is this calculated?* panel:
+You can adjust the assumptions in the savings breakdown (*See how we calculate it*):
 
 - **Speed per user**, which changes the concurrent-user estimate.
 - **Power cost**, to show net savings rather than gross.
@@ -279,7 +272,7 @@ You can adjust the assumptions in the *How is this calculated?* panel:
 
 ### Models
 
-The model selector covers leading open-weight models, including:
+The savings engine covers leading open-weight models, including:
 
 - Kimi K3 (Moonshot AI)
 - GLM 5.3 (Z.ai)
@@ -304,15 +297,13 @@ Collecting the data is the first step. This is how teams typically turn it into 
 
 **3. Reclaim memory-held GPUs.** GPUs at 0% compute that still hold memory are usually abandoned notebooks or hung jobs. They block the scheduler without doing any work. Cleaning them up is often the fastest win, and costs nothing.
 
-**4. Match the model to the shape of your idle time.** Large models that need a whole node only fit into fully idle nodes. If most of your idle capacity is scattered across partly busy nodes, a model that fits on one GPU will capture far more of it. Try different models in the selector and watch the numbers change. The tips on each cluster card point out when a different model would earn more.
+**4. Match the model to the shape of your idle time.** Large models that need a whole node only fit into fully idle nodes. If most of your idle capacity is scattered across partly busy nodes, a model that fits on one GPU will capture far more of it. Compare the models in each cluster's savings engine to see which one earns the most on your hardware.
 
-**5. Exclude what's idle on purpose.** Turn off *Eligible for Klique* on hot spares, interactive nodes and anything else you deliberately keep free, so your reported numbers reflect real opportunity.
+**5. Use reserved capacity.** If a cluster runs on reserved or committed cloud instances, its idle hours are already paid for. Any useful work you run there is close to free.
 
-**6. Use reserved capacity.** If a cluster runs on reserved or committed cloud instances, its idle hours are already paid for. Any useful work you run there is close to free.
+**6. Bring the numbers to the conversation.** Use *potential value* and *left on the table* to inform capacity planning, budget reviews and commercial API spend decisions. Compare clusters to see where utilization lags.
 
-**7. Bring the numbers to the conversation.** Use *left on the table* and *potential savings* to inform capacity planning, budget reviews and commercial API spend decisions. Compare across sites to see where utilization lags.
-
-**8. Put the capacity to work with Klique.** Once you know how much free capacity you have and which model suits it, Klique lets you act on it: run models on your own GPUs and route your teams' AI traffic to them through Klique's LLM gateway. See [Acting on your idle GPUs](#acting-on-your-idle-gpus).
+**7. Put the capacity to work with Klique.** Once you know how much free capacity you have and which model suits it, Klique lets you act on it: run models on your own GPUs and route your teams' AI traffic to them through Klique's LLM gateway. See [Acting on your idle GPUs](#acting-on-your-idle-gpus).
 
 ---
 
