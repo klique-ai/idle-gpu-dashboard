@@ -12,6 +12,10 @@ Most clusters have more idle capacity than their owners realize. It hides in the
 
 ## How it works
 
+![Architecture: collectors on every GPU node report through the hub on Kubernetes, or directly on bare metal, Slurm and PBS, to the hosted Klique dashboard and to your own Prometheus and Grafana](docs/images/architecture.svg)
+
+![Deployment on Kubernetes (Helm chart: a hub plus a collector DaemonSet) and on bare metal, Slurm and PBS (a collector systemd service on every GPU node)](docs/images/deployment.svg)
+
 Klique Idle GPU Dashboard runs a small **collector** on every GPU node. Every 2 seconds it reads:
 
 - **The GPUs**, through NVML, the library that ships with the NVIDIA driver: utilization, memory, power, temperature and the processes using each GPU.
@@ -32,10 +36,6 @@ Every installation can send its data to any of these, separately or together:
 - **Your own Prometheus and Grafana** (the default), through a standard `/metrics` endpoint. A ready-made Grafana dashboard is included, and nothing leaves your network.
 - **The hosted Klique dashboard** at `idle.klique.ai`, once you add an API key.
 - **Your own server**, which receives the same reports. The report format is documented in [docs/payload.md](docs/payload.md).
-
-![Architecture: collectors on every GPU node report through the hub on Kubernetes, or directly on bare metal, Slurm and PBS, to the hosted Klique dashboard and to your own Prometheus and Grafana](docs/images/architecture.svg)
-
-![Deployment on Kubernetes (Helm chart: a hub plus a collector DaemonSet) and on bare metal, Slurm and PBS (a collector systemd service on every GPU node)](docs/images/deployment.svg)
 
 ---
 
